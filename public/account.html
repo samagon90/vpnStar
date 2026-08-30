@@ -6,6 +6,15 @@
 <title>Кабинет — Sonic VPN</title>
 <link rel="icon" type="image/png" href="/img/logo.png">
 <link rel="stylesheet" href="/css/site.css">
+<style>
+  .dev-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--card-b)}
+  .dev-item:last-child{border-bottom:0}
+  .dev-name{font-weight:700;min-width:140px}
+  .dev-qr{background:#fff;border-radius:12px;padding:10px;display:inline-block;margin-top:10px}
+  .dev-qr img{display:block;width:220px;height:220px}
+  .dev-actions{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .buy-box{background:rgba(30,111,255,.12);border:1px solid rgba(30,111,255,.4);border-radius:12px;padding:14px 18px;margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+</style>
 </head>
 <body>
 <div class="sky"></div>
@@ -39,25 +48,37 @@
         <div>Статус <b id="sub-status" class="gr">…</b></div>
         <div>Действует до <b id="sub-exp">…</b></div>
         <div>Осталось <b id="sub-days">…</b></div>
-        <div>Устройств <b>5</b></div>
+        <div>Устройства <b id="sub-devices">…</b></div>
       </div>
     </div>
 
-    <!-- ПРОФИЛЬ -->
-    <div class="panel" id="profile-panel" style="display:none">
-      <h3><span class="l">🔑 Ваш профиль (QR)</span></h3>
-      <div class="qr-box">
-        <img id="qr-img" alt="QR-код подключения" style="display:none">
-        <div style="flex:1;min-width:260px">
-          <p style="color:var(--muted);font-size:.92rem;margin-bottom:12px">
-            Отсканируйте QR в <b style="color:var(--txt)">v2rayNG</b> (Android), <b style="color:var(--txt)">Streisand</b> / <b style="color:var(--txt)">Hiddify</b> (iOS, Windows) или <b style="color:var(--txt)">WireGuard/Amnezia</b>. До 5 устройств на эту подписку.
-          </p>
-          <div class="row">
-            <button class="btn btn-ghost btn-sm" id="copy-link">📋 Скопировать ссылку</button>
-            <button class="btn btn-ghost btn-sm" id="dl-conf">⬇ Скачать конфиг</button>
-          </div>
-          <pre class="codebox" id="conf-text" style="margin-top:14px;display:none"></pre>
+    <!-- УСТРОЙСТВА -->
+    <div class="panel" id="devices-panel" style="display:none">
+      <h3><span class="l">📱 Мои устройства</span>
+        <span class="hint" id="dev-counter" style="margin-left:auto"></span>
+      </h3>
+      <p class="hint" style="margin:-4px 0 12px">
+        В подписке 2 устройства, докупить можно ещё до 8 (итого до 10) — <b style="color:var(--txt)">99 ₽ за устройство</b>.
+        Заблокируйте устройство, если боитесь, что им пользуются без вас: оно просто перестанет подключаться.
+      </p>
+      <div id="dev-list"></div>
+
+      <div class="row" style="margin-top:16px;gap:10px;flex-wrap:wrap" id="add-dev-row">
+        <input id="dev-name" placeholder="Название (например, iPhone)" maxlength="30"
+               style="background:rgba(0,0,0,.35);border:1px solid var(--card-b);border-radius:10px;padding:9px 14px;color:var(--txt);min-width:220px">
+        <button class="btn btn-ghost btn-sm" id="add-dev">➕ Добавить устройство</button>
+      </div>
+
+      <div class="buy-box" id="dev-buy-box" style="display:none">
+        <div style="flex:1;min-width:200px">
+          <b>Слоты закончились.</b> +1 устройство — <b id="dev-price">99 ₽</b> (оплата СБП/картой или реферальным балансом).
         </div>
+        <label class="hint" id="dev-usebal-label" style="display:none"><input type="checkbox" id="dev-usebal"> оплатить с реферального баланса</label>
+        <button class="btn btn-primary btn-sm" id="dev-buy">Купить +1</button>
+      </div>
+      <div id="dev-mock-box" style="display:none;margin-top:12px">
+        <p class="hint">Тестовый режим: подтвердите оплату устройства.</p>
+        <button class="btn btn-ghost btn-sm" id="dev-mock-confirm">✅ Я оплатил</button>
       </div>
     </div>
 
@@ -86,7 +107,7 @@
           </tbody>
         </table>
       </div>
-      <p class="hint" style="margin-top:10px">Балансом можно оплатить подписку прямо в чекауте. Начисление — автоматически после каждой оплаты приглашённого (включая продления).</p>
+      <p class="hint" style="margin-top:10px">Балансом можно оплатить подписку и доп. устройства прямо в кабинете. Начисление — автоматически после каждой оплаты приглашённого (включая продления).</p>
     </div>
 
     <!-- ИСТОРИЯ ОПЛАТ -->
@@ -111,28 +132,22 @@
 
 <script src="/js/api.js"></script>
 <script>
-  let ME = null, SUB = null;
+  let ME = null, SUB = null, DEVS = null, MOCK_ID = null;
+  const $ = (id) => document.getElementById(id);
 
   async function load() {
-    try {
-      ME = await API.get('/api/me');
-    } catch (e) {
-      if (e.status === 401) location.href = '/auth.html';
-      return;
-    }
-    document.getElementById('user-name').textContent = ME.username + (ME.tg_linked ? ' · TG' : '');
-
-    try {
-      SUB = await API.get('/api/subscription');
-    } catch { /* ignore */ }
+    try { ME = await API.get('/api/me'); } catch (e) { if (e.status === 401) location.href = '/auth.html'; return; }
+    $('user-name').textContent = ME.username + (ME.tg_linked ? ' · TG' : '');
+    try { SUB = await API.get('/api/subscription'); } catch { /* ignore */ }
     renderSub();
+    loadDevices();
     loadRefs();
     loadHistory();
   }
 
   function renderSub() {
     if (!SUB) return;
-    const st = document.getElementById('sub-status');
+    const st = $('sub-status');
     if (SUB.active) {
       st.textContent = SUB.kind === 'trial' ? 'Пробный период' : 'Активна';
       st.className = SUB.kind === 'trial' ? 'pill trial' : 'pill ok';
@@ -141,40 +156,141 @@
       st.textContent = 'Не активна';
       st.className = 'pill off';
     }
-    document.getElementById('sub-exp').textContent = SUB.expires_str || '—';
-    document.getElementById('sub-days').textContent = SUB.days_left + ' дн.';
-    const p = SUB.profile;
-    const panel = document.getElementById('profile-panel');
-    if (p) {
-      panel.style.display = 'block';
-      const img = document.getElementById('qr-img');
-      img.src = p.qr;
-      img.style.display = 'block';
-      document.getElementById('conf-text').textContent = p.config_text;
-      document.getElementById('conf-text').style.display = 'block';
-      document.getElementById('copy-link').onclick = () => {
-        navigator.clipboard.writeText(p.vless_link).then(() => toast('Ссылка скопирована'));
-      };
-      document.getElementById('dl-conf').onclick = () => {
+    $('sub-exp').textContent = SUB.expires_str || '—';
+    $('sub-days').textContent = SUB.days_left + ' дн.';
+    if (SUB.devices) $('sub-devices').textContent = `${SUB.devices.used}/${SUB.devices.limit}`;
+    $('devices-panel').style.display = SUB.active ? 'block' : 'none';
+  }
+
+  // ---------- УСТРОЙСТВА ----------
+  async function loadDevices() {
+    if (!SUB || !SUB.active) return;
+    try { DEVS = await API.get('/api/devices'); } catch (e) { return; }
+    $('dev-counter').textContent = `${DEVS.used}/${DEVS.limit} (включено ${DEVS.base}, докуплено ${DEVS.extra})`;
+
+    const list = $('dev-list');
+    if (!DEVS.devices.length) {
+      list.innerHTML = '<p class="m">Пока нет устройств — добавьте первое ниже (имя можно любое).</p>';
+    } else {
+      list.innerHTML = DEVS.devices.map((d) => `
+        <div class="dev-item" data-id="${d.id}">
+          <div class="dev-name">${esc(d.name)} ${d.enabled
+            ? '<span class="pill ok">активно</span>'
+            : '<span class="pill off">заблокировано</span>'}</div>
+          <span class="m" style="font-size:.85rem">добавлено ${d.created_str}</span>
+          <div class="dev-actions">
+            <button class="btn btn-ghost btn-sm dev-qr-btn">📷 QR</button>
+            <button class="btn btn-ghost btn-sm dev-toggle">${d.enabled ? '🚫 Заблокировать' : '✅ Включить'}</button>
+            <button class="btn btn-ghost btn-sm dev-del">🗑 Удалить</button>
+          </div>
+          <div class="dev-qr-wrap" style="display:none;width:100%"></div>
+        </div>`).join('');
+
+      list.querySelectorAll('.dev-item').forEach((el) => {
+        const id = Number(el.dataset.id);
+        el.querySelector('.dev-qr-btn').onclick = () => toggleQr(el, id);
+        el.querySelector('.dev-toggle').onclick = async () => {
+          const d = DEVS.devices.find((x) => x.id === id);
+          try {
+            const r = await API.patch(`/api/devices/${id}`, { enabled: !d.enabled });
+            toast(d.enabled ? `«${d.name}» заблокировано` : `«${d.name}» снова активно`);
+            loadDevices();
+          } catch (e) { toast(e.message); }
+        };
+        el.querySelector('.dev-del').onclick = async () => {
+          const d = DEVS.devices.find((x) => x.id === id);
+          if (!confirm(`Удалить «${d.name}»? Слот освободится, профиль на телефоне перестанет работать.`)) return;
+          try { await API.del(`/api/devices/${id}`); toast('Устройство удалено'); loadDevices(); } catch (e) { toast(e.message); }
+        };
+      });
+    }
+
+    $('add-dev-row').style.display = DEVS.can_add ? 'flex' : 'none';
+    $('dev-buy-box').style.display = DEVS.can_buy ? (DEVS.can_add ? 'none' : 'flex') : 'none';
+    if (ME.balance_cents > 0) $('dev-usebal-label').style.display = DEVS.can_buy && !DEVS.can_add ? 'inline' : 'none';
+    $('dev-price').textContent = DEVS.pack_price;
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  async function toggleQr(el, id) {
+    const wrap = el.querySelector('.dev-qr-wrap');
+    if (wrap.style.display !== 'none') { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+    wrap.innerHTML = '<p class="m">Загружаем QR…</p>';
+    wrap.style.display = 'block';
+    try {
+      const r = await API.get(`/api/devices/${id}`);
+      const p = r.profile;
+      if (!p) { wrap.innerHTML = '<p class="m">Профиль недоступен</p>'; return; }
+      wrap.innerHTML = `
+        <div class="row" style="gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div class="dev-qr"><img src="${p.qr}" alt="QR ${esc(r.device.name)}"></div>
+          <div style="flex:1;min-width:260px">
+            <p class="m" style="margin-bottom:10px">Сканируйте в <b style="color:var(--txt)">v2rayNG</b> (Android), <b style="color:var(--txt)">Streisand</b> / <b style="color:var(--txt)">Hiddify</b> (iOS, Windows).</p>
+            <div class="row" style="gap:8px">
+              <button class="btn btn-ghost btn-sm" data-a="copy">📋 Скопировать ссылку</button>
+              <button class="btn btn-ghost btn-sm" data-a="dl">⬇ Скачать конфиг</button>
+            </div>
+          </div>
+        </div>`;
+      wrap.querySelector('[data-a="copy"]').onclick = () => navigator.clipboard.writeText(p.vless_link).then(() => toast('Ссылка скопирована'));
+      wrap.querySelector('[data-a="dl"]').onclick = () => {
         const blob = new Blob([p.config_text], { type: 'text/plain' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'sonicvpn.conf';
+        a.download = `sonicvpn-${r.device.id}.conf`;
         a.click();
       };
-    } else {
-      panel.style.display = 'none';
-    }
+    } catch (e) { wrap.innerHTML = `<p class="m">Ошибка: ${esc(e.message)}</p>`; }
   }
 
+  $('add-dev').onclick = async () => {
+    const name = $('dev-name').value.trim();
+    try {
+      const r = await API.post('/api/devices', { name });
+      $('dev-name').value = '';
+      toast(`Устройство «${r.device.name}» добавлено`);
+      loadDevices();
+    } catch (e) {
+      if (e.status === 400 && e.data && e.data.code === 'limit') toast('Лимит исчерпан — докупите +1 устройство');
+      else toast(e.message || 'Не получилось');
+    }
+  };
+
+  $('dev-buy').onclick = async () => {
+    try {
+      const r = await API.post('/api/devices/buy', { use_balance: $('dev-usebal').checked });
+      if (r.paid) { toast('+1 устройство оплачено!'); MOCK_ID = null; loadDevices(); load(); return; }
+      if (r.mode === 'mock') {
+        MOCK_ID = r.checkout_id;
+        $('dev-mock-box').style.display = 'block';
+        return;
+      }
+      if (r.confirmation_url) { location.href = r.confirmation_url; return; }
+      toast('Не получилось, попробуйте ещё раз');
+    } catch (e) { toast(e.message || 'Не получилось'); }
+  };
+
+  $('dev-mock-confirm').onclick = async () => {
+    if (!MOCK_ID) return;
+    try {
+      await API.post(`/api/payments/${MOCK_ID}/confirm-mock`);
+      MOCK_ID = null;
+      $('dev-mock-box').style.display = 'none';
+      toast('+1 устройство оплачено!');
+      loadDevices(); loadHistory();
+    } catch (e) { toast(e.message || 'Не получилось'); }
+  };
+
+  // ---------- РЕФЕРАЛКА / ИСТОРИЯ ----------
   async function loadRefs() {
     try {
       const r = await API.get('/api/referrals');
-      document.getElementById('ref-code').textContent = r.code;
-      document.getElementById('ref-count').textContent = r.invited_count;
-      document.getElementById('ref-earned').textContent = r.total_earned;
-      document.getElementById('ref-balance').textContent = r.balance;
-      const rows = document.getElementById('ref-rows');
+      $('ref-code').textContent = r.code;
+      $('ref-count').textContent = r.invited_count;
+      $('ref-earned').textContent = r.total_earned;
+      $('ref-balance').textContent = r.balance;
+      const rows = $('ref-rows');
       if (!r.invited.length) {
         rows.innerHTML = '<tr><td colspan="6" class="m">Пока никого. Поделитесь кодом — с каждой оплаты друга вам 20%.</td></tr>';
       } else {
@@ -188,21 +304,17 @@
             <td class="gr" style="color:var(--ok)">${x.earned}</td>
           </tr>`).join('');
       }
-      document.getElementById('copy-ref').onclick = () => {
-        navigator.clipboard.writeText(r.code).then(() => toast('Код скопирован'));
-      };
-      document.getElementById('copy-share').onclick = () => {
-        navigator.clipboard.writeText(r.share_url).then(() => toast('Ссылка скопирована'));
-      };
+      $('copy-ref').onclick = () => navigator.clipboard.writeText(r.code).then(() => toast('Код скопирован'));
+      $('copy-share').onclick = () => navigator.clipboard.writeText(r.share_url).then(() => toast('Ссылка скопирована'));
     } catch (e) {
-      document.getElementById('ref-rows').innerHTML = `<tr><td colspan="6" class="m">Ошибка: ${e.message}</td></tr>`;
+      $('ref-rows').innerHTML = `<tr><td colspan="6" class="m">Ошибка: ${esc(e.message)}</td></tr>`;
     }
   }
 
   async function loadHistory() {
     try {
       const h = await API.get('/api/payments/history');
-      const rows = document.getElementById('pay-rows');
+      const rows = $('pay-rows');
       if (!h.history.length) {
         rows.innerHTML = '<tr><td colspan="5" class="m">Оплат пока нет</td></tr>';
       } else {
@@ -210,7 +322,7 @@
         rows.innerHTML = h.history.map((p) => `
           <tr>
             <td class="m">${fmtDate(p.paid_at || p.created_at)}</td>
-            <td>${p.plan}</td>
+            <td>${esc(p.plan)}</td>
             <td>${p.amount}</td>
             <td>${p.balance_used ? p.balance_used : '—'}</td>
             <td>${label[p.status] || p.status}</td>
@@ -219,7 +331,7 @@
     } catch { /* ignore */ }
   }
 
-  document.getElementById('logout').onclick = async (e) => {
+  $('logout').onclick = async (e) => {
     e.preventDefault();
     try { await API.post('/api/logout'); } catch { /* ignore */ }
     location.href = '/auth.html';

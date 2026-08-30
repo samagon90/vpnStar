@@ -9,17 +9,26 @@ const r = Router();
 
 export const findPlan = (id) => PLANS.find((p) => p.id === Number(id));
 
-/** Начислить подписку + бонус рефереру (20% от оплаты) */
+/**
+ * Начислить результат оплаты + бонус рефереру (20% от ВСЕХ оплат).
+ * kind='plan' → продлевает подписку; kind='devices' → +слот устройства.
+ */
 export function applyPayment(payment) {
-  const plan = findPlan(payment.plan_id);
-  if (!plan) throw new Error('unknown plan');
-  const sub = q.sub(payment.user_id);
-  const base = sub && new Date(sub.expires_at) > new Date() ? sub.expires_at : nowISO();
-  q.upsertSub(payment.user_id, 'plan', plan.id, addMonths(base, plan.months));
-  q.event(payment.user_id, 'payment');
+  const user = q.userById(payment.user_id);
+  if (payment.kind === 'devices' || payment.plan_id === 0) {
+    const extra = Number(user.devices_extra || 0) + (payment.qty || 1);
+    q.setDevicesExtra(payment.user_id, extra);
+    q.event(payment.user_id, 'payment');
+  } else {
+    const plan = findPlan(payment.plan_id);
+    if (!plan) throw new Error('unknown plan');
+    const sub = q.sub(payment.user_id);
+    const base = sub && new Date(sub.expires_at) > new Date() ? sub.expires_at : nowISO();
+    q.upsertSub(payment.user_id, 'plan', plan.id, addMonths(base, plan.months));
+    q.event(payment.user_id, 'payment');
+  }
 
   let bonus = 0;
-  const user = q.userById(payment.user_id);
   if (user && user.referrer_id) {
     bonus = Math.round((payment.amount_cents + payment.balance_used_cents) * REFERRAL_PERCENT) / 100;
     q.addBalance(user.referrer_id, bonus);
@@ -100,7 +109,7 @@ r.get('/history', (req, res) => {
   res.json({
     history: rows.map((p) => ({
       id: p.id,
-      plan: findPlan(p.plan_id)?.name || '?',
+      plan: p.kind === 'devices' ? p.item || 'Устройство +1' : findPlan(p.plan_id)?.name || '?',
       amount: money(p.amount_cents),
       balance_used: money(p.balance_used_cents),
       status: p.status,
@@ -150,6 +159,13 @@ r.post('/:id/refund', async (req, res) => {
     await yk.refund(p.yk_payment_id, p.amount_cents);
   }
   q.updatePaymentStatus(p.id, 'refunded');
+  if (p.kind === 'devices') {
+    // откат: возвращаем слот устройства
+    const u = q.userById(p.user_id);
+    q.setDevicesExtra(p.user_id, Math.max(0, Number(u.devices_extra || 0) - (p.qty || 1)));
+    res.json({ ok: true });
+    return;
+  }
   // откат подписки: если до конца оплаченного периода >30 дней — отнимаем оплаченные месяцы
   const plan = findPlan(p.plan_id);
   const sub = q.sub(p.user_id);

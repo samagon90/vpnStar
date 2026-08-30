@@ -55,10 +55,13 @@ class Xui {
     throw new Error('3x-ui: VLESS inbound не найден (создайте inbound при подготовке VPS)');
   }
 
-  /** Создать клиента VLESS для пользователя. Возвращает client email-ref. */
-  async addVlessClient(user) {
+  /**
+   * Один клиент 3x-ui = ОДНО устройство (limitIp: 1).
+   * Блокировка устройства = enable: false у его клиента.
+   */
+  async addVlessClient(user, device) {
     const { id } = await this.inboundId();
-    const ref = `vs-u${user.id}-${Date.now().toString(36)}`;
+    const ref = `vs-u${user.id}-d${device.id}-${Date.now().toString(36)}`;
     // email-поле клиента у 3x-ui — уникальный идентификатор
     await this.api('/panel/api/inbound/addClient', {
       inboundId: id,
@@ -68,7 +71,7 @@ class Xui {
             id: ref,
             email: ref,
             flow: 'xtls-rprx-vision',
-            limitIp: 5,
+            limitIp: 1,
             totalGB: 0,
             enable: true,
           },
@@ -78,19 +81,39 @@ class Xui {
     return ref;
   }
 
-  async profileFor(user) {
-    const client = (await import('../db.js')).q.client(user.id);
-    if (!client || client.provider !== '3x-ui') throw new Error('no 3x-ui client');
+  /** Включить/выключить клиента по ref (блокировка устройства пользователем). */
+  async setClientEnabled(ref, enable) {
     const { id, net } = await this.inboundId();
-    const list = net ? net.clients : await this.api(`/panel/api/inbound/list?id=${id}`);
-    const c = (list.clients || list).find((c) => c.id === client.ref_id || c.email === client.ref_id);
+    const settings = net || JSON.parse((await this.api(`/panel/api/inbound/list`)).rows.find((r) => r.id === id)?.settings || '{}');
+    const c = (settings.clients || []).find((x) => x.id === ref || x.email === ref);
+    if (!c) throw new Error(`client ${ref} not found in 3x-ui`);
+    c.enable = !!enable;
+    await this.api('/panel/api/inbound/updateClient', { inboundId: id, settings: JSON.stringify(settings) });
+  }
+
+  /** Удалить клиента (свободит слот устройства). */
+  async delClient(ref) {
+    const { id } = await this.inboundId();
+    await this.api('/panel/api/inbound/delClient', {
+      inboundId: id,
+      settings: JSON.stringify({ clients: [{ id: ref, email: ref }] }),
+    });
+  }
+
+  async profileFor(device) {
+    if (!device || !device.ref_id) throw new Error('no device ref');
+    const { id, net } = await this.inboundId();
+    const list = net ? net.clients : (await this.api('/panel/api/inbound/list')).rows.find((r) => r.id === id)?.settings;
+    const clients = list && !Array.isArray(list) && list.clients ? list.clients : (typeof list === 'string' ? JSON.parse(list).clients : list);
+    const c = (clients || []).find((x) => x.id === device.ref_id || x.email === device.ref_id);
     if (!c) throw new Error('client not found in 3x-ui');
     const host = process.env.XUI_HOST || 'vpn.example.com';
     const port = process.env.XUI_PORT || 443;
     const sni = process.env.XUI_SNI || 'www.microsoft.com';
     const pbk = process.env.XUI_PUB_KEY || '';
+    const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
     const link =
-      `vless://${c.id}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#SonicVPN`;
+      `vless://${c.id}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#${remark}`;
     const share = { vless: [{ uuid: c.id, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts: { publicKey: pbk, serverName: sni, fingerprint: 'chrome' } }] };
     return {
       vless_link: link,

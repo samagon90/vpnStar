@@ -15,12 +15,15 @@ const API = {
     if (!res.ok) {
       const err = new Error((data && data.error) || `HTTP ${res.status}`);
       err.status = res.status;
+      err.data = data;
       throw err;
     }
     return data;
   },
   get: (u) => API.req('GET', u),
   post: (u, b) => API.req('POST', u, b || {}),
+  patch: (u, b) => API.req('PATCH', u, b || {}),
+  del: (u) => API.req('DELETE', u),
 };
 
 function toast(msg, ms = 2600) {

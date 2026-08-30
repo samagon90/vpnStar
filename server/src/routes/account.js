@@ -1,26 +1,19 @@
 import { Router } from 'express';
-import { REFERRAL_PERCENT, DEVICES_PER_PLAN, TRIAL_DAYS, cfg } from '../config.js';
+import { REFERRAL_PERCENT, DEVICES_BASE, DEVICE_PACK_PRICE_CENTS, DEVICE_PACK_MAX, TRIAL_DAYS, cfg } from '../config.js';
 import { q, daysLeft, db } from '../db.js';
 import { money, fmtDate } from '../util.js';
 import { provider } from '../vpn/provider.js';
 
 const r = Router();
 
-/** Статус подписки + готовый профиль (QR + конфиг) */
-r.get('/subscription', async (req, res) => {
+/** Статус подписки + сводка по устройствам (профили — в /api/devices) */
+r.get('/subscription', (req, res) => {
   const user = req.user;
   const sub = q.sub(user.id);
   const active = !!(sub && new Date(sub.expires_at) > new Date());
-  let profile = null;
-  if (active) {
-    try {
-      profile = await provider.profile(user);
-      profile.qr = await provider.qrDataUrl(profile);
-      delete profile.demo;
-    } catch (e) {
-      console.error('profile', e.message);
-    }
-  }
+  const extra = Number(user.devices_extra || 0);
+  const used = q.deviceCount(user.id);
+  const limit = DEVICES_BASE + extra;
   res.json({
     active,
     kind: sub ? sub.kind : null,
@@ -28,9 +21,8 @@ r.get('/subscription', async (req, res) => {
     expires_str: sub ? fmtDate(sub.expires_at) : null,
     days_left: sub ? daysLeft(sub.expires_at) : 0,
     trial_days: TRIAL_DAYS,
-    devices: DEVICES_PER_PLAN,
+    devices: { base: DEVICES_BASE, extra, limit, used, can_add: used < limit, can_buy: extra < DEVICE_PACK_MAX, pack_price: money(DEVICE_PACK_PRICE_CENTS) },
     provider: provider.name(),
-    profile,
   });
 });
 

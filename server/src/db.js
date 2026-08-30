@@ -59,6 +59,17 @@ CREATE TABLE IF NOT EXISTS vpn_clients(
   ref_id TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS devices(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  name TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  ref_id TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  blocked_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
 CREATE TABLE IF NOT EXISTS events(
   user_id INTEGER NOT NULL,
   type TEXT NOT NULL,
@@ -74,6 +85,28 @@ CREATE TABLE IF NOT EXISTS notifications(
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id, at);
 CREATE INDEX IF NOT EXISTS idx_users_referrer ON users(referrer_id);
 `);
+
+// --- миграции (безопасно для старых баз) ---
+function addColumn(table, col, def) {
+  try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch { /* уже есть */ }
+}
+addColumn('users', 'devices_extra', 'INTEGER NOT NULL DEFAULT 0'); // докупленных устройств
+addColumn('payments', 'kind', "TEXT NOT NULL DEFAULT 'plan'"); // plan | devices
+addColumn('payments', 'item', 'TEXT'); // название позиции (для kind=devices)
+addColumn('payments', 'qty', 'INTEGER NOT NULL DEFAULT 1');
+
+// vpn_clients (1 клиент на юзера) → devices (1 строка на устройство) — разово
+try {
+  const migrated = db.prepare('SELECT COUNT(*) c FROM devices').get().c;
+  if (!migrated) {
+    const rows = db.prepare("SELECT * FROM vpn_clients WHERE ref_id != 'pending'").all();
+    for (const c of rows) {
+      db.prepare('INSERT INTO devices(user_id, name, provider, ref_id, enabled, created_at) VALUES(?,?,?,?,1,?)')
+        .run(c.user_id, 'Основное', c.provider, c.ref_id, c.created_at);
+    }
+    if (rows.length) console.log(`[db] миграция: ${rows.length} vpn_clients → devices`);
+  }
+} catch (e) { console.error('[db] миграция devices:', e.message); }
 
 export const nowISO = () => new Date().toISOString();
 
@@ -116,8 +149,8 @@ export const q = {
 
   payment: (id) => db.prepare('SELECT * FROM payments WHERE id = ?').get(id),
   paymentByYk: (ykId) => db.prepare('SELECT * FROM payments WHERE yk_payment_id = ?').get(ykId),
-  insertPayment: (p) => db.prepare(`INSERT INTO payments(id, user_id, plan_id, amount_cents, balance_used_cents, status, yk_payment_id, created_at)
-      VALUES(?,?,?,?,?,?,?,?)`).run(p.id, p.user_id, p.plan_id, p.amount_cents, p.balance_used_cents ?? 0, p.status ?? 'pending', p.yk_payment_id ?? null, p.created_at ?? nowISO()),
+  insertPayment: (p) => db.prepare(`INSERT INTO payments(id, user_id, plan_id, amount_cents, balance_used_cents, status, yk_payment_id, kind, item, qty, created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(p.id, p.user_id, p.plan_id, p.amount_cents, p.balance_used_cents ?? 0, p.status ?? 'pending', p.yk_payment_id ?? null, p.kind ?? 'plan', p.item ?? null, p.qty ?? 1, p.created_at ?? nowISO()),
   updatePaymentStatus: (id, status, extra = {}) => {
     const sets = ['status = ?'];
     const args = [status];
@@ -131,6 +164,22 @@ export const q = {
 
   client: (userId) => db.prepare('SELECT * FROM vpn_clients WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(Number(userId)),
   insertClient: (userId, provider, refId) => db.prepare('INSERT INTO vpn_clients(user_id, provider, ref_id, created_at) VALUES(?,?,?,?)').run(Number(userId), provider, refId, nowISO()),
+
+  // --- devices (по одному VPN-клиенту на устройство) ---
+  device: (id) => db.prepare('SELECT * FROM devices WHERE id = ?').get(Number(id)),
+  devicesOf: (userId) => db.prepare('SELECT * FROM devices WHERE user_id = ? ORDER BY id ASC').all(Number(userId)),
+  deviceCount: (userId) => Number(db.prepare('SELECT COUNT(*) c FROM devices WHERE user_id = ?').get(Number(userId)).c),
+  insertDevice: (userId, name, provider = 'pending', refId = null) => {
+    const r = db.prepare('INSERT INTO devices(user_id, name, provider, ref_id, enabled, created_at) VALUES(?,?,?,?,1,?)')
+      .run(Number(userId), name, provider, refId, nowISO());
+    return Number(r.lastInsertRowid);
+  },
+  setDeviceName: (id, name) => db.prepare('UPDATE devices SET name = ? WHERE id = ?').run(name, Number(id)),
+  setDeviceEnabled: (id, enabled) =>
+    db.prepare('UPDATE devices SET enabled = ?, blocked_at = ? WHERE id = ?').run(enabled ? 1 : 0, enabled ? null : nowISO(), Number(id)),
+  setDeviceRef: (id, provider, refId) => db.prepare('UPDATE devices SET provider = ?, ref_id = ? WHERE id = ?').run(provider, refId, Number(id)),
+  deleteDevice: (id) => db.prepare('DELETE FROM devices WHERE id = ?').run(Number(id)),
+  setDevicesExtra: (userId, extra) => db.prepare('UPDATE users SET devices_extra = ? WHERE id = ?').run(Number(extra), Number(userId)),
 
   event: (userId, type) => db.prepare('INSERT INTO events(user_id, type, at) VALUES(?,?,?)').run(Number(userId), type, nowISO()),
   totalPaid: (userId) => Number(db.prepare("SELECT COALESCE(SUM(amount_cents + balance_used_cents),0) s FROM payments WHERE user_id = ? AND status = 'paid'").get(Number(userId)).s),

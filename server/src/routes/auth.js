@@ -46,15 +46,16 @@ r.post('/register', async (req, res) => {
         created_at: nowISO(),
       });
       q.upsertSub(id, 'trial', null, addDays(nowISO(), TRIAL_DAYS));
-      q.insertClient(id, 'pending', 'pending');
+      q.insertDevice(id, 'Основное', 'pending', null); // первое устройство; VPN-клиент provision-ится ниже
       q.event(id, 'register');
       db.exec('COMMIT');
     } catch (e) {
       db.exec('ROLLBACK');
       throw e;
     }
-    // профиль VPS — отдельно (может быть долгим/недоступным)
-    await provider.provision({ id });
+    // VPN-клиент — отдельно (может быть долгим/недоступным)
+    const firstDevice = q.devicesOf(id)[0];
+    if (firstDevice) await provider.provisionDevice({ id }, firstDevice).catch((e) => console.error('provision', e.message));
     const token = createSession(id);
     q.touch(id);
     res.setHeader('Set-Cookie', `vs_session=${token}; Path=/; HttpOnly; SameSite=Lax${COOKIE.secure ? '; Secure' : ''}; Max-Age=${COOKIE.maxAge / 1000}`);
@@ -118,7 +119,8 @@ r.post('/auth/telegram', (req, res) => {
   q.event(user.id, created ? 'register' : 'login');
   if (created) {
     q.upsertSub(user.id, 'trial', null, addDays(nowISO(), TRIAL_DAYS));
-    provider.provision(user).catch((e) => console.error('provision(tg)', e.message));
+    const firstDevice = q.insertDevice(user.id, 'Основное', 'pending', null);
+    provider.provisionDevice(user, q.device(firstDevice)).catch((e) => console.error('provision(tg)', e.message));
   }
   const token = createSession(user.id);
   res.setHeader('Set-Cookie', `vs_session=${token}; Path=/; HttpOnly; SameSite=Lax${COOKIE.secure ? '; Secure' : ''}; Max-Age=${COOKIE.maxAge / 1000}`);

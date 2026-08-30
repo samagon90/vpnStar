@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard } from 'grammy';
-import { cfg, PLANS, REFERRAL_PERCENT, TRIAL_DAYS } from './config.js';
+import { cfg, PLANS, REFERRAL_PERCENT, TRIAL_DAYS, DEVICES_BASE, DEVICE_PACK_PRICE_CENTS } from './config.js';
 import { q, createSession, nowISO, addDays } from './db.js';
 import { randomRefCode, money, fmtDate } from './util.js';
 import { provider } from './vpn/provider.js';
@@ -25,10 +25,33 @@ export function startBot() {
 
   const menu = new InlineKeyboard()
     .text('📶 Моя подписка', 'sub')
+    .text('📱 Мои устройства', 'devices')
     .text('💳 Купить VPN', 'buy')
     .text('🤝 Реферальная программа (20%)', 'ref')
     .text('❓ Поддержка (нейросеть)', 'support')
     .text('📣 Канал сервиса', 'channel');
+
+  const devicesLimit = (user) => DEVICES_BASE + Number(user.devices_extra || 0);
+  const firstActiveDevice = (user) => q.devicesOf(user.id).find((d) => d.enabled);
+
+  /** Список устройств для бота: кнопки-QR + командами /block /unblock блокировка */
+  function devicesMessage(user) {
+    const list = q.devicesOf(user.id);
+    const limit = devicesLimit(user);
+    let txt = `📱 Ваши устройства: ${list.length}/${limit}\n` +
+      (DEVICES_BASE === 2 ? `В подписке ${DEVICES_BASE} устройства. ` : '') +
+      `+1 устройство — ${money(DEVICE_PACK_PRICE_CENTS)}.\n\n`;
+    if (!list.length) txt += 'Пока нет устройств — добавьте на сайте (кабинет) или нажмите ниже.\n';
+    list.forEach((d, i) => {
+      txt += `${i + 1}. ${d.enabled ? '✅' : '🚫'} <b>${d.name}</b>\n`;
+    });
+    txt += `\nБлокировка устройства (самостоятельно): <code>/block №</code> и <code>/unblock №</code>\nУдаление устройства (свободит слот) — в кабинете на сайте.`;
+    const kb = new InlineKeyboard();
+    list.slice(0, 6).forEach((d, i) => kb.text(`📷 QR — ${i + 1}. ${d.name}`, `devqr_${d.id}`));
+    kb.text(`🛒 Устройство +1 — ${money(DEVICE_PACK_PRICE_CENTS)}`, 'dev1');
+    kb.text('⬅ Меню', 'menu');
+    return { txt, kb };
+  }
 
   async function ensureAccount(from, refCode) {
     let user = q.userByTg(from.id);
@@ -57,7 +80,8 @@ export function startBot() {
       user = q.userById(id);
       created = true;
       q.upsertSub(user.id, 'trial', null, addDays(nowISO(), TRIAL_DAYS));
-      await provider.provision(user).catch((e) => console.error('[bot] provision', e.message));
+      const firstDevice = q.insertDevice(user.id, 'Основное', 'pending', null);
+      await provider.provisionDevice(user, q.device(firstDevice)).catch((e) => console.error('[bot] provision', e.message));
     } else {
       q.linkTg(user.id, from.id, from.username || user.tg_username);
     }
@@ -97,12 +121,41 @@ export function startBot() {
       `Sonic VPN — быстрый VPN:
 • 7 дней бесплатно, без карты
 • СБП QR + карты РФ
-• 5 устройств, no-logs
+• ${DEVICES_BASE} устройства в подписке (+1 за ${money(DEVICE_PACK_PRICE_CENTS)}, до 10)
 • ${REFERRAL_PERCENT}% от оплат друзей — вам
 
 Меню:`,
       { reply_markup: menu }
     );
+  });
+
+  // --- управление устройствами (пользователь сам блокирует свои) ---
+  bot.command('devices', async (ctx) => {
+    const { user } = await ensureAccount(ctx.from);
+    const { txt, kb } = devicesMessage(user);
+    await ctx.reply(txt, { parse_mode: 'HTML', reply_markup: kb });
+  });
+
+  bot.command('block', async (ctx) => {
+    const { user } = await ensureAccount(ctx.from);
+    const n = Number(ctx.message?.text?.split(/\s+/)[1] || 0);
+    const device = q.devicesOf(user.id)[n - 1];
+    if (!device) return ctx.reply(`Нет устройства №${n}. Список: /devices`);
+    if (!device.enabled) return ctx.reply(`${device.name} уже заблокировано.`);
+    await provider.setDeviceEnabled(device, false);
+    q.event(user.id, 'device_blocked');
+    await ctx.reply(`🚫 Устройство «${device.name}» заблокировано — оно больше не подключится.\nВключить: /unblock ${n}`);
+  });
+
+  bot.command('unblock', async (ctx) => {
+    const { user } = await ensureAccount(ctx.from);
+    const n = Number(ctx.message?.text?.split(/\s+/)[1] || 0);
+    const device = q.devicesOf(user.id)[n - 1];
+    if (!device) return ctx.reply(`Нет устройства №${n}. Список: /devices`);
+    if (device.enabled) return ctx.reply(`${device.name} уже активно.`);
+    await provider.setDeviceEnabled(device, true);
+    q.event(user.id, 'device_unblocked');
+    await ctx.reply(`✅ Устройство «${device.name}» снова активно.`, { reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices') });
   });
 
   // --- режим ИИ-поддержки: обычные сообщения идут в нейронку ---
@@ -130,18 +183,73 @@ export function startBot() {
         );
         return;
       }
-      const info = await provider.profile(user);
+      const devices = q.devicesOf(user.id);
+      const first = firstActiveDevice(user);
+      const info = first ? await provider.profile(user, first) : null;
       await ctx.editMessageText(
-        `📶 Подписка активна\nИстекает: ${fmtDate(sub.expires_at)} (${Math.max(0, Math.ceil((new Date(sub.expires_at) - Date.now()) / 86400000))} дн.)\nУстройств: 5\nПровайдер: ${provider.name()}\n\nКонфиг (импорт в v2rayNG / Streisand / Hiddify):`,
-        { reply_markup: new InlineKeyboard().text('📄 QR-код', 'sub_qr').text('💳 Продлить', 'buy') }
+        `📶 Подписка активна\nИстекает: ${fmtDate(sub.expires_at)} (${Math.max(0, Math.ceil((new Date(sub.expires_at) - Date.now()) / 86400000))} дн.)\nУстройств: ${devices.length}/${devicesLimit(user)} (в подписке ${DEVICES_BASE}, +1 за ${money(DEVICE_PACK_PRICE_CENTS)})\nПровайдер: ${provider.name()}\n\n${info ? 'Конфиг основного устройства (импорт в v2rayNG / Streisand / Hiddify):' : '⚠️ Нет активных устройств — добавьте на сайте или в «📱 Мои устройства».'}`,
+        { reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices').text('💳 Продлить', 'buy') }
       );
-      await ctx.reply(`\`\`\`${info.config_text}\n\`\`\``, { parse_mode: 'Markdown' });
+      if (info) await ctx.reply(`\`\`\`${info.config_text}\n\`\`\``, { parse_mode: 'Markdown' });
     }
 
-    if (data === 'sub_qr') {
-      const info = await provider.profile(user);
+    if (data === 'devices') {
+      const { txt, kb } = devicesMessage(user);
+      await ctx.editMessageText(txt, { parse_mode: 'HTML', reply_markup: kb });
+    }
+
+    if (data.startsWith('devqr_')) {
+      const device = q.device(Number(data.split('_')[1]));
+      if (!device || device.user_id !== user.id) return;
+      const info = await provider.profile(user, device);
       const buf = await provider.qrBuffer(info.vless_link);
-      await ctx.replyPhoto(buf, { caption: 'Отсканируйте — и подключитесь в v2rayNG / Streisand / Hiddify' });
+      await ctx.replyPhoto(buf, { caption: `${device.name} — отсканируйте в v2rayNG / Streisand / Hiddify` });
+    }
+
+    if (data === 'dev1') {
+      // покупка +1 устройства (99 ₽)
+      if (Number(user.devices_extra || 0) >= 8) return ctx.answerCallbackQuery('Уже максимум 10 устройств');
+      const balance = q.userById(user.id).balance_cents;
+      const balanceUsed = Math.min(balance, DEVICE_PACK_PRICE_CENTS);
+      const rest = DEVICE_PACK_PRICE_CENTS - balanceUsed;
+      const checkoutId = `co_${Math.random().toString(36).slice(2, 14)}`;
+      q.insertPayment({ id: checkoutId, user_id: user.id, plan_id: 0, amount_cents: DEVICE_PACK_PRICE_CENTS, balance_used_cents: balanceUsed, status: 'pending', kind: 'devices', item: '+1 устройство', qty: 1 });
+      if (balanceUsed > 0) q.setBalance(user.id, user.balance_cents - balanceUsed);
+      if (rest === 0) {
+        applyPayment(q.payment(checkoutId));
+        await ctx.editMessageText(`✅ Устройство +1 оплачено с реферального баланса (${money(balanceUsed)})! Лимит теперь ${devicesLimit(q.userById(user.id))}.`, {
+          reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices').text('⬅ Меню', 'menu'),
+        });
+        return;
+      }
+      if (!yk.enabled()) {
+        await ctx.editMessageText(
+          `Тестовый режим: устройство +1 за ${money(rest)}. Нажмите кнопку ниже, чтобы подтвердить.`,
+          { reply_markup: new InlineKeyboard().text(`✅ Я оплатил ${money(rest)}`, `mockdevpay_${checkoutId}`).text('⬅ Меню', 'menu') }
+        );
+        return;
+      }
+      const { ykId, confirmationUrl } = await yk.createPayment({
+        amountCents: rest,
+        description: 'Sonic VPN — устройство +1',
+        returnUrl: `${cfg.base_url}/account.html`,
+        idempotencyKey: checkoutId,
+      });
+      q.updatePaymentStatus(checkoutId, 'pending', { yk_payment_id: ykId });
+      await ctx.editMessageText(
+        `Оплатите ${money(rest)} по СБП (QR в приложении банка) или картой — и слот устройства появится.`,
+        { reply_markup: new InlineKeyboard().url('💳 Оплатить (СБП / карта)', confirmationUrl).text('✅ Я оплатил — проверить', `chek_${checkoutId}`) }
+      );
+    }
+
+    if (data.startsWith('mockdevpay_')) {
+      const checkoutId = data.split('_').slice(1).join('_');
+      const p = q.payment(checkoutId);
+      if (!p || p.user_id !== user.id) return;
+      if (p.status === 'pending') applyPayment(p);
+      await ctx.editMessageText(`✅ Готово! Лимит устройств теперь ${devicesLimit(q.userById(user.id))}.`, {
+        reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices'),
+      });
     }
 
     if (data === 'buy') {

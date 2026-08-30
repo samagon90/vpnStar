@@ -7,6 +7,7 @@ import { parseCookies } from './util.js';
 import authRoutes from './routes/auth.js';
 import payRoutes from './routes/pay.js';
 import accountRoutes from './routes/account.js';
+import devicesRoutes from './routes/devices.js';
 import webhookRoutes from './routes/webhooks.js';
 import { startBot } from './bot.js';
 import { setBot } from './botref.js';
@@ -25,7 +26,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
   }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
@@ -47,6 +48,7 @@ app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISO
 app.use('/api', authRoutes);
 app.use('/api/payments', requireAuth, payRoutes);
 app.use('/api', requireAuth, accountRoutes);
+app.use('/api/devices', requireAuth, devicesRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // --- Статика: сайт (работает в РФ без VPN: деплой на Cloudflare Pages / за Cloudflare-прокси) ---

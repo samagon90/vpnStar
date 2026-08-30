@@ -39,7 +39,11 @@ export const cfg = {
 
 export const REFERRAL_PERCENT = 20; // % от оплаты клиента уходит рефереру
 export const TRIAL_DAYS = 7;
-export const DEVICES_PER_PLAN = 5;
+
+// --- устройства ---
+export const DEVICES_BASE = 2; // устройств входит в каждую подписку (и пробник)
+export const DEVICE_PACK_PRICE_CENTS = 9900; // +1 устройство — 99 ₽
+export const DEVICE_PACK_MAX = 8; // докупить можно до 10 устройств всего
 
 export const PLANS = [
   { id: 1, key: 'm1', name: '1 месяц', months: 1, price_cents: 19900 },

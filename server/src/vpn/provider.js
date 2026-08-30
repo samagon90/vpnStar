@@ -7,23 +7,32 @@ import { xui } from './xui.js';
 /**
  * Профиль = { vless_link, config_text, host, port, uuid, demo:boolean }
  *
+ * Модель: ОДНО УСТРОЙСТВО = ОДИН VPN-клиент (uuid). Подписка включает DEVICES_BASE
+ * устройства; докупка слотов — за деньги (payment kind='devices').
+ * Блокировка устройства — пользователь сам включает/выключает своё устройство.
+ *
  * Mock-провайдер (по умолчанию): детерминированный VLESS+Reality профиль
- * с демо-хостом. Реально: 3x-ui на Oracle Cloud VPS (provider ниже).
+ * с демо-хостом. Реально: 3x-ui на VPS (xui.js).
  */
-function mockProfile(user) {
-  const seed = crypto.createHash('sha256').update(`sonicvpn:${user.id}`).digest();
-  const uuid = [
+function uuidFrom(seedText) {
+  const seed = crypto.createHash('sha256').update(seedText).digest();
+  return [
     seed.subarray(0, 4).toString('hex'), seed.subarray(4, 6).toString('hex'),
     seed.subarray(6, 8).toString('hex'), seed.subarray(8, 10).toString('hex'),
     seed.subarray(10, 14).toString('hex'),
   ].join('-');
+}
+
+function mockProfileFor(user, device) {
+  const uuid = uuidFrom(`sonicvpn:u${user.id}:d${device.id}`);
   const host = cfg.vpn_demo_host;
   const port = 443;
   const sni = 'www.microsoft.com';
   const pbk = 'sLpYQmH1zX8vT3bN9kJ5dR2fG7wCeUaV4hM6oB8qPy='; // демонстрационный
   const fp = 'chrome';
+  const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
   const link =
-    `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp/#SonicVPN`;
+    `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp/#${remark}`;
   // конфиг в base64 (формат share v2ray) — импортируется в v2rayNG / Streisand / Hiddify
   const share = {
     vless: [{
@@ -39,31 +48,53 @@ function mockProfile(user) {
 export const provider = {
   name: () => (cfg.xui_base ? '3x-ui' : 'mock'),
 
-  async provision(user) {
-    // если клиент уже есть — не плодим
-    const existing = q.client(user.id);
-    if (existing && existing.provider === this.name()) return existing.ref_id;
-
+  /** Создать VPN-клиент для устройства (1 устройство = 1 клиент). Обновляет device.ref_id. */
+  async provisionDevice(user, device) {
+    if (device.ref_id && device.provider === this.name() && device.provider !== 'pending') return device.ref_id;
     let refId;
     if (cfg.xui_base) {
-      refId = await xui.addVlessClient(user);
+      refId = await xui.addVlessClient(user, device);
     } else {
-      refId = `mock-${user.id}`;
+      refId = `mock-u${user.id}-d${device.id}`;
     }
-    if (existing) q.insertClient(user.id, this.name(), refId);
-    else q.insertClient(user.id, this.name(), refId);
+    q.setDeviceRef(device.id, this.name(), refId);
     return refId;
   },
 
-  async profile(user) {
-    if (cfg.xui_base) {
+  /** Профиль устройства (VLESS-ссылка + конфиг) */
+  async profile(user, device) {
+    if (cfg.xui_base && device.provider === '3x-ui' && device.ref_id) {
       try {
-        return await xui.profileFor(user);
+        return await xui.profileFor(device);
       } catch (e) {
         console.error('[vpn] xui profile failed, fallback mock:', e.message);
       }
     }
-    return mockProfile(user);
+    return mockProfileFor(user, device);
+  },
+
+  /** Блокировка/включение устройства пользователем */
+  async setDeviceEnabled(device, enable) {
+    if (cfg.xui_base && device.provider === '3x-ui' && device.ref_id) {
+      try {
+        await xui.setClientEnabled(device.ref_id, enable);
+      } catch (e) {
+        console.error('[vpn] xui setClientEnabled failed:', e.message);
+      }
+    }
+    q.setDeviceEnabled(device.id, enable);
+  },
+
+  /** Удаление устройства (свободит слот) */
+  async deleteDevice(device) {
+    if (cfg.xui_base && device.provider === '3x-ui' && device.ref_id) {
+      try {
+        await xui.delClient(device.ref_id);
+      } catch (e) {
+        console.error('[vpn] xui delClient failed:', e.message);
+      }
+    }
+    q.deleteDevice(device.id);
   },
 
   async qrDataUrl(profile) {
