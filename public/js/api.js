@@ -1,7 +1,10 @@
-/* VpnStar: маленький API-хелпер (credentials: same-origin) */
+/* Sonic VPN: маленький API-хелпер (credentials: same-origin) */
+// Если сайт на Cloudflare Pages, а API на отдельном домене — укажите его:
+// const API_BASE = 'https://api.sonicvpn.ru';
+const API_BASE = '';
 const API = {
   async req(method, url, body) {
-    const res = await fetch(url, {
+    const res = await fetch(API_BASE + url, {
       method,
       credentials: 'same-origin',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,

@@ -90,7 +90,7 @@ class Xui {
     const sni = process.env.XUI_SNI || 'www.microsoft.com';
     const pbk = process.env.XUI_PUB_KEY || '';
     const link =
-      `vless://${c.id}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp#VpnStar`;
+      `vless://${c.id}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#SonicVPN`;
     const share = { vless: [{ uuid: c.id, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts: { publicKey: pbk, serverName: sni, fingerprint: 'chrome' } }] };
     return {
       vless_link: link,

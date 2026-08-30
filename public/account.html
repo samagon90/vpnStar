@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Кабинет — VpnStar</title>
+<title>Кабинет — Sonic VPN</title>
+<link rel="icon" type="image/png" href="/img/logo.png">
 <link rel="stylesheet" href="/css/site.css">
 </head>
 <body>
@@ -11,12 +12,12 @@
 
 <header>
   <div class="wrap nav">
-    <a class="logo" href="/"><span class="star">✦</span>VpnStar</a>
+    <a class="logo" href="/"><img src="/img/logo.png" alt="Sonic VPN">Sonic VPN</a>
     <nav>
       <ul>
         <li><a href="/#pricing">Тарифы</a></li>
         <li><a href="/#faq">FAQ</a></li>
-        <li><a href="https://t.me/vpnstar_bot" target="_blank">Бот и поддержка</a></li>
+        <li><a href="https://t.me/sonicvpn_bot" target="_blank">Бот и поддержка</a></li>
       </ul>
     </nav>
     <div class="row" id="user-box">
@@ -104,7 +105,7 @@
 
 <footer>
   <div class="wrap">
-    <p class="disclaimer">VpnStar · No-logs · Серверы за рубежом · Поддержка 24/7 в Telegram (нейросеть)</p>
+    <p class="disclaimer">Sonic VPN · No-logs · Серверы за рубежом · Поддержка 24/7 в Telegram (нейросеть)</p>
   </div>
 </footer>
 
@@ -158,7 +159,7 @@
         const blob = new Blob([p.config_text], { type: 'text/plain' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'vpnstar.conf';
+        a.download = 'sonicvpn.conf';
         a.click();
       };
     } else {

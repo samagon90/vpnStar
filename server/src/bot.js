@@ -8,7 +8,7 @@ import { findPlan, applyPayment } from './routes/pay.js';
 import { aiSupport } from './ai.js';
 
 /**
- * Telegram-бот VpnStar:
+ * Telegram-бот Sonic VPN:
  *  - регистрация/синхронизация аккаунта (/start, /link)
  *  - статус подписки + профиль (QR)
  *  - покупка (СБП QR / карта)
@@ -70,7 +70,7 @@ export function startBot() {
     const ref = ctx.message?.text?.split(/\s+/)[1] || '';
     const { user, created } = await ensureAccount(ctx.from, ref);
     const hello = created
-      ? `✦ Добро пожаловать в VpnStar, ${ctx.from.first_name}!\n\nВаш аккаунт создан и синхронизирован с Telegram.\n🎁 Вам начислено ${TRIAL_DAYS} дней бесплатного доступа — карта и подтверждение почты/номера не нужны.\n\n${created && user.referrer_id ? '🤝 Включён реферальный код: приглашавший получает 20% от ваших оплат.\n\n' : ''}`
+      ? `✦ Добро пожаловать в Sonic VPN, ${ctx.from.first_name}!\n\nВаш аккаунт создан и синхронизирован с Telegram.\n🎁 Вам начислено ${TRIAL_DAYS} дней бесплатного доступа — карта и подтверждение почты/номера не нужны.\n\n${created && user.referrer_id ? '🤝 Включён реферальный код: приглашавший получает 20% от ваших оплат.\n\n' : ''}`
       : `✦ С возвращением, ${ctx.from.first_name}! Аккаунт синхронизирован с Telegram.\n`;
     await ctx.reply(hello, { reply_markup: menu });
   });
@@ -94,7 +94,7 @@ export function startBot() {
 
   bot.command('help', async (ctx) => {
     await ctx.reply(
-      `VpnStar — быстрый VPN:
+      `Sonic VPN — быстрый VPN:
 • 7 дней бесплатно, без карты
 • СБП QR + карты РФ
 • 5 устройств, no-logs
@@ -183,7 +183,7 @@ export function startBot() {
       }
       const { ykId, confirmationUrl } = await yk.createPayment({
         amountCents: rest,
-        description: `VpnStar — ${plan.name}`,
+        description: `Sonic VPN — ${plan.name}`,
         returnUrl: `${cfg.base_url}/checkout.html?plan=${plan.key}`,
         idempotencyKey: checkoutId,
       });
@@ -254,7 +254,7 @@ export function startBot() {
     }
 
     if (data === 'menu') {
-      await ctx.editMessageText('✦ VpnStar — что делаем?', { reply_markup: menu });
+      await ctx.editMessageText('✦ Sonic VPN — что делаем?', { reply_markup: menu });
     }
   });
 

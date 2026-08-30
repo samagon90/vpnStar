@@ -45,7 +45,7 @@ export const yk = {
     return call('GET', `/v3/payments/${ykId}`);
   },
 
-  refund(ykId, amountCents, description = 'Возврат по гарантии VpnStar') {
+  refund(ykId, amountCents, description = 'Возврат по гарантии Sonic VPN') {
     return call('POST', '/v2/refunds', {
       payment_id: ykId,
       amount: { value: (amountCents / 100).toFixed(2), currency: 'RUB' },

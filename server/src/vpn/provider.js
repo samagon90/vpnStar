@@ -11,7 +11,7 @@ import { xui } from './xui.js';
  * с демо-хостом. Реально: 3x-ui на Oracle Cloud VPS (provider ниже).
  */
 function mockProfile(user) {
-  const seed = crypto.createHash('sha256').update(`vpnstar:${user.id}`).digest();
+  const seed = crypto.createHash('sha256').update(`sonicvpn:${user.id}`).digest();
   const uuid = [
     seed.subarray(0, 4).toString('hex'), seed.subarray(4, 6).toString('hex'),
     seed.subarray(6, 8).toString('hex'), seed.subarray(8, 10).toString('hex'),
@@ -23,7 +23,7 @@ function mockProfile(user) {
   const pbk = 'sLpYQmH1zX8vT3bN9kJ5dR2fG7wCeUaV4hM6oB8qPy='; // демонстрационный
   const fp = 'chrome';
   const link =
-    `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp#VpnStar`;
+    `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp/#SonicVPN`;
   // конфиг в base64 (формат share v2ray) — импортируется в v2rayNG / Streisand / Hiddify
   const share = {
     vless: [{

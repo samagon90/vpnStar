@@ -62,7 +62,7 @@ r.post('/', async (req, res) => {
   try {
     const { ykId, confirmationUrl } = await yk.createPayment({
       amountCents: rest,
-      description: `VpnStar — ${plan.name}`,
+      description: `Sonic VPN — ${plan.name}`,
       returnUrl: `${cfg.base_url}/checkout.html?plan=${plan.key}`,
       idempotencyKey: checkoutId,
     });

@@ -20,7 +20,7 @@ export function startCron() {
         if (q.notifyExists(s.user_id, kind, s.expires_at)) continue;
         const user = q.userById(s.user_id);
         const plan = PLANS.find((p) => p.id === s.plan_id);
-        const text = `VpnStar: ваша подписка (${plan ? plan.name : 'пробный период'}) истекает ${new Date(s.expires_at).toLocaleDateString('ru-RU')} — через ${n} дн. Продлите, чтобы не потерять доступ.`;
+        const text = `Sonic VPN: ваша подписка (${plan ? plan.name : 'пробный период'}) истекает ${new Date(s.expires_at).toLocaleDateString('ru-RU')} — через ${n} дн. Продлите, чтобы не потерять доступ.`;
         let sent = false;
         if (user.tg_id && botApi()) {
           try {
@@ -35,7 +35,7 @@ export function startCron() {
               port: cfg.smtp_port,
               auth: { user: cfg.smtp_user, pass: cfg.smtp_pass },
             });
-            await t.sendMail({ from: cfg.mail_from, to: user.email, subject: 'VpnStar: подписка заканчивается', text });
+            await t.sendMail({ from: cfg.mail_from, to: user.email, subject: 'Sonic VPN: подписка заканчивается', text });
             sent = true;
           } catch (e) {
             console.error('[mail]', e.message);

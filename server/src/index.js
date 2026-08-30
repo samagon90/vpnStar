@@ -17,6 +17,20 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(parseCookies);
 
+// CORS: для варианта, когда сайт на Cloudflare Pages, а API — на VPS (см. deploy/README.md)
+const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && corsOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // авторизация: cookie-сессия
 app.use((req, res, next) => {
   req.user = getSessionUser(req);
@@ -44,7 +58,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(cfg.port, '0.0.0.0', () => {
-  console.log(`VpnStar: http://0.0.0.0:${cfg.port} (mode: ${cfg.payment_mode}, vpn: ${cfg.xui_base ? '3x-ui' : 'mock'})`);
+  console.log(`Sonic VPN: http://0.0.0.0:${cfg.port} (mode: ${cfg.payment_mode}, vpn: ${cfg.xui_base ? '3x-ui' : 'mock'})`);
 });
 
 const bot = startBot();

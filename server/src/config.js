@@ -17,13 +17,13 @@ export const cfg = {
 
   tg_bot_token: env('TG_BOT_TOKEN'),
   tg_support: env('TG_SUPPORT_USERNAME', ''),
-  tg_channel_url: env('TG_CHANNEL_URL', 'https://t.me/vpnstar_channel'),
+  tg_channel_url: env('TG_CHANNEL_URL', 'https://t.me/sonicvpn_channel'),
 
   ai_api_base: env('AI_API_BASE'),
   ai_api_key: env('AI_API_KEY'),
   ai_model: env('AI_MODEL', 'gpt-4o-mini'),
 
-  mail_from: env('MAIL_FROM', 'VpnStar <no-reply@vpnstar.example>'),
+  mail_from: env('MAIL_FROM', 'Sonic VPN <no-reply@sonicvpn.example>'),
   smtp_host: env('SMTP_HOST'),
   smtp_port: Number(env('SMTP_PORT', '587')),
   smtp_user: env('SMTP_USER'),
