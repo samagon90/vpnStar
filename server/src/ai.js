@@ -1,4 +1,6 @@
 import { cfg, PLANS, REFERRAL_PERCENT, TRIAL_DAYS, DEVICES_BASE, DEVICE_PACK_PRICE_CENTS } from './config.js';
+import { q, daysLeft } from './db.js';
+import { money, fmtDate } from './util.js';
 
 const KB = `Ты — вежливый техподдержки VPN-сервиса Sonic VPN (отвечаешь на русском, кратко, по делу).
 Информация о сервисе (отвечай ТОЛЬКО исходя из неё):
@@ -14,7 +16,34 @@ const KB = `Ты — вежливый техподдержки VPN-сервис�
 - No-logs: история посещений не хранится. Серверы за рубежом.
 - Гарантия: возврат 3 дня, если сервис не работает по нашей вине.
 - Сайт работает в России без VPN.
-Вопросы, не по сервису, вежливо переводи на Sonic VPN. Если ответа нет в знаниях — так и скажи и предложи написать человеку в поддержку.`;
+Вопросы, не по сервису, вежливо переводи на Sonic VPN. Если ответа нет в знаниях — так и скажи и предложи написать человеку в поддержку.
+Если в контексте есть «Текущие данные клиента» — используй их, отвечай конкретно (например, «ваша подписка действует до …»). Не выдумывай данные, которых там нет.`;
+
+/** Живые данные клиента для контекста (подписка, устройства, баланс) */
+function userContextBlock(user) {
+  if (!user) return '';
+  const sub = q.sub(user.id);
+  const devices = q.devicesOf(user.id);
+  const extra = Number(user.devices_extra || 0);
+  const lines = [
+    '',
+    'Текущие данные клиента (источник правды, использовать в ответах):',
+    `- Логин: ${user.username}${user.email ? `, email: ${user.email}` : ''}`,
+  ];
+  if (sub) {
+    const active = new Date(sub.expires_at) > new Date();
+    lines.push(
+      `- Подписка: ${active ? 'активна' : 'не активна'} (${sub.kind === 'trial' ? 'пробный период' : 'оплаченная'}), до ${fmtDate(sub.expires_at)}${active ? `, осталось ${daysLeft(sub.expires_at)} дн.` : ' (истекла)'}`
+    );
+  } else {
+    lines.push('- Подписка: отсутствует');
+  }
+  lines.push(
+    `- Устройства: ${devices.length}/${DEVICES_BASE + extra} (включено ${DEVICES_BASE}, докуплено ${extra}); список: ${devices.map((d, i) => `${i + 1}. ${d.name} — ${d.enabled ? 'активно' : 'заблокировано'}`).join('; ') || 'нет'}`
+  );
+  lines.push(`- Реферальный баланс: ${money(user.balance_cents)}; реферальный код: ${user.referral_code}`);
+  return lines.join('\n');
+}
 
 const CANNED = {
   price: 'Тарифы Sonic VPN:\n• 1 месяц — 199 ₽\n• 3 месяца — 499 ₽ (популярный)\n• 12 месяцев — 1 499 ₽\n\n7 дней бесплатно для новых — просто зарегистрируйтесь, карта не нужна.',
@@ -37,8 +66,14 @@ function canned(answer) {
   return CANNED.default;
 }
 
-/** Ответ ИИ-поддержки. Если AI_API_KEY не задан — отвечает по заранее написанному FAQ. */
-export async function aiSupport(message) {
+/**
+ * Ответ ИИ-поддержки.
+ * - Нет AI_API_KEY → заранее написанный FAQ (canned).
+ * - Есть → запрос к OpenAI-совместимому API (Groq / OpenRouter / Gemini / любой),
+ *   в контексте — база знаний о сервисе + живые данные клиента.
+ * - 429 (лимит бесплатного тарифа) или ошибка → FAQ-фолбэк, клиент не остаётся без ответа.
+ */
+export async function aiSupport(message, user = null) {
   if (!cfg.ai_api_base || !cfg.ai_api_key) return canned(message);
   try {
     const res = await fetch(`${cfg.ai_api_base.replace(/\/$/, '')}/chat/completions`, {
@@ -47,19 +82,22 @@ export async function aiSupport(message) {
       body: JSON.stringify({
         model: cfg.ai_model,
         temperature: 0.3,
-        max_tokens: 400,
+        max_tokens: 500,
         messages: [
-          { role: 'system', content: KB },
+          { role: 'system', content: KB + userContextBlock(user) },
           { role: 'user', content: message },
         ],
       }),
     });
+    if (res.status === 429) {
+      return canned(message) + '\n\n(Сейчас на нейросети перегруз — ответил по базовой базе знаний. Попробуйте ещё раз через минуту.)';
+    }
     if (!res.ok) throw new Error(`AI ${res.status}`);
     const j = await res.json();
     const text = j.choices?.[0]?.message?.content?.trim();
     return text || canned(message);
   } catch (e) {
     console.error('[ai]', e.message);
-    return canned(message) + '\n\n(ИИ временно недоступен — ответил по FAQ)';
+    return canned(message) + '\n\n(Нейросеть временно недоступна — ответил по базовой базе знаний)';
   }
 }

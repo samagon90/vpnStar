@@ -165,8 +165,9 @@ export function startBot() {
       await ctx.reply('Нажмите «❓ Поддержка (нейросеть)» в меню — и просто пишите вопрос.', { reply_markup: menu });
       return;
     }
-    const answer = await aiSupport(ctx.message.text);
-    await ctx.reply(answer);
+    const { user } = await ensureAccount(ctx.from); // живые данные клиента в контекст нейросети
+    const answer = await aiSupport(ctx.message.text, user);
+    await ctx.reply(answer, { link_preview_options: { is_disabled: true } });
   });
 
   bot.on('callback_query:data', async (ctx) => {

@@ -49,7 +49,7 @@ npm start                   # http://localhost:8080
 3. **Домен** sonicvpn.ru (СБП у регистратора) → **Cloudflare** (A-запись, прокси ВКЛ).
 4. **ЮKassa**: самозанятый («Мой налог») → Shop ID/Secret Key → `PAYMENT_MODE=yookassa` + webhook.
 5. **BotFather**: `@sonicvpn_bot` (токен в `.env`), API URL для Login Widget = `https://sonicvpn.ru`; канал `@sonicvpn_channel`.
-6. **AI-поддержка**: `AI_API_BASE/AI_API_KEY/AI_MODEL` (OpenRouter/Groq/OpenAI; без ключа — FAQ-режим).
+6. **AI-поддержка (бесплатно)**: ключ **Groq** (console.groq.com, без карты, ~1000 вопросов/день) или OpenRouter `:free` → `AI_API_BASE/AI_API_KEY/AI_MODEL` в `.env` (см. `deploy/README.md` шаг 4.1). Без ключа — FAQ-режим.
 7. Деплой: `git clone` → `npm install` → `.env` → `pm2 start`.
 
 > 💡 **Альтернатива 0 ₽**: если есть зарубежная банковская карта — Oracle Cloud Always Free
