@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кабинет — VpnStar</title>
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="/"><span class="star">✦</span>VpnStar</a>
+    <nav>
+      <ul>
+        <li><a href="/#pricing">Тарифы</a></li>
+        <li><a href="/#faq">FAQ</a></li>
+        <li><a href="https://t.me/vpnstar_bot" target="_blank">Бот и поддержка</a></li>
+      </ul>
+    </nav>
+    <div class="row" id="user-box">
+      <span id="user-name" style="color:var(--muted);font-size:.9rem"></span>
+      <a class="btn btn-ghost btn-sm" href="#" id="logout">Выйти</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section style="padding-top:40px">
+
+    <!-- ПОДПИСКА -->
+    <div class="panel">
+      <h3><span class="l">📶 Подписка</span>
+        <a class="btn btn-primary btn-sm" href="/checkout.html" id="renew-btn">Продлить / купить</a>
+      </h3>
+      <div class="kv" id="sub-kv">
+        <div>Статус <b id="sub-status" class="gr">…</b></div>
+        <div>Действует до <b id="sub-exp">…</b></div>
+        <div>Осталось <b id="sub-days">…</b></div>
+        <div>Устройств <b>5</b></div>
+      </div>
+    </div>
+
+    <!-- ПРОФИЛЬ -->
+    <div class="panel" id="profile-panel" style="display:none">
+      <h3><span class="l">🔑 Ваш профиль (QR)</span></h3>
+      <div class="qr-box">
+        <img id="qr-img" alt="QR-код подключения" style="display:none">
+        <div style="flex:1;min-width:260px">
+          <p style="color:var(--muted);font-size:.92rem;margin-bottom:12px">
+            Отсканируйте QR в <b style="color:var(--txt)">v2rayNG</b> (Android), <b style="color:var(--txt)">Streisand</b> / <b style="color:var(--txt)">Hiddify</b> (iOS, Windows) или <b style="color:var(--txt)">WireGuard/Amnezia</b>. До 5 устройств на эту подписку.
+          </p>
+          <div class="row">
+            <button class="btn btn-ghost btn-sm" id="copy-link">📋 Скопировать ссылку</button>
+            <button class="btn btn-ghost btn-sm" id="dl-conf">⬇ Скачать конфиг</button>
+          </div>
+          <pre class="codebox" id="conf-text" style="margin-top:14px;display:none"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- РЕФЕРАЛКА -->
+    <div class="panel">
+      <h3><span class="l">🤝 Реферальная программа — 20% с оплат друзей</span></h3>
+      <div class="row" style="margin-bottom:16px">
+        <div style="background:rgba(0,0,0,.35);border:1px solid var(--card-b);border-radius:12px;padding:10px 16px">
+          Ваш код: <b id="ref-code" style="font-size:1.1rem;letter-spacing:.08em">…</b>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="copy-ref">📋 Скопировать</button>
+        <button class="btn btn-ghost btn-sm" id="copy-share">🔗 Ссылка для друга</button>
+      </div>
+      <div class="kv" style="margin-bottom:16px">
+        <div>Приглашено <b id="ref-count">…</b></div>
+        <div>Всего заработано <b class="gr" id="ref-earned">…</b></div>
+        <div>Баланс (можно потратить) <b class="gr" id="ref-balance">…</b></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="ref-table">
+          <thead>
+            <tr><th>Пользователь</th><th>Email</th><th>Подключён</th><th>Активность</th><th>Оплатил</th><th>Ваш 20%</th></tr>
+          </thead>
+          <tbody id="ref-rows">
+            <tr><td colspan="6" class="m">Загружаем…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin-top:10px">Балансом можно оплатить подписку прямо в чекауте. Начисление — автоматически после каждой оплаты приглашённого (включая продления).</p>
+    </div>
+
+    <!-- ИСТОРИЯ ОПЛАТ -->
+    <div class="panel">
+      <h3><span class="l">🧾 История оплат</span></h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Дата</th><th>Тариф</th><th>Сумма</th><th>Со счёта</th><th>Статус</th></tr></thead>
+          <tbody id="pay-rows"><tr><td colspan="5" class="m">Загружаем…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="disclaimer">VpnStar · No-logs · Серверы за рубежом · Поддержка 24/7 в Telegram (нейросеть)</p>
+  </div>
+</footer>
+
+<script src="/js/api.js"></script>
+<script>
+  let ME = null, SUB = null;
+
+  async function load() {
+    try {
+      ME = await API.get('/api/me');
+    } catch (e) {
+      if (e.status === 401) location.href = '/auth.html';
+      return;
+    }
+    document.getElementById('user-name').textContent = ME.username + (ME.tg_linked ? ' · TG' : '');
+
+    try {
+      SUB = await API.get('/api/subscription');
+    } catch { /* ignore */ }
+    renderSub();
+    loadRefs();
+    loadHistory();
+  }
+
+  function renderSub() {
+    if (!SUB) return;
+    const st = document.getElementById('sub-status');
+    if (SUB.active) {
+      st.textContent = SUB.kind === 'trial' ? 'Пробный период' : 'Активна';
+      st.className = SUB.kind === 'trial' ? 'pill trial' : 'pill ok';
+      st.style.display = 'inline-block';
+    } else {
+      st.textContent = 'Не активна';
+      st.className = 'pill off';
+    }
+    document.getElementById('sub-exp').textContent = SUB.expires_str || '—';
+    document.getElementById('sub-days').textContent = SUB.days_left + ' дн.';
+    const p = SUB.profile;
+    const panel = document.getElementById('profile-panel');
+    if (p) {
+      panel.style.display = 'block';
+      const img = document.getElementById('qr-img');
+      img.src = p.qr;
+      img.style.display = 'block';
+      document.getElementById('conf-text').textContent = p.config_text;
+      document.getElementById('conf-text').style.display = 'block';
+      document.getElementById('copy-link').onclick = () => {
+        navigator.clipboard.writeText(p.vless_link).then(() => toast('Ссылка скопирована'));
+      };
+      document.getElementById('dl-conf').onclick = () => {
+        const blob = new Blob([p.config_text], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'vpnstar.conf';
+        a.click();
+      };
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+
+  async function loadRefs() {
+    try {
+      const r = await API.get('/api/referrals');
+      document.getElementById('ref-code').textContent = r.code;
+      document.getElementById('ref-count').textContent = r.invited_count;
+      document.getElementById('ref-earned').textContent = r.total_earned;
+      document.getElementById('ref-balance').textContent = r.balance;
+      const rows = document.getElementById('ref-rows');
+      if (!r.invited.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="m">Пока никого. Поделитесь кодом — с каждой оплаты друга вам 20%.</td></tr>';
+      } else {
+        rows.innerHTML = r.invited.map((x) => `
+          <tr>
+            <td>${x.username}${x.tg !== '—' ? ` <span class="m">(${x.tg})</span>` : ''}</td>
+            <td class="m">${x.email}</td>
+            <td class="m">${x.connected_str}</td>
+            <td class="m">${x.last_active_str}</td>
+            <td>${x.total_paid}</td>
+            <td class="gr" style="color:var(--ok)">${x.earned}</td>
+          </tr>`).join('');
+      }
+      document.getElementById('copy-ref').onclick = () => {
+        navigator.clipboard.writeText(r.code).then(() => toast('Код скопирован'));
+      };
+      document.getElementById('copy-share').onclick = () => {
+        navigator.clipboard.writeText(r.share_url).then(() => toast('Ссылка скопирована'));
+      };
+    } catch (e) {
+      document.getElementById('ref-rows').innerHTML = `<tr><td colspan="6" class="m">Ошибка: ${e.message}</td></tr>`;
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const h = await API.get('/api/payments/history');
+      const rows = document.getElementById('pay-rows');
+      if (!h.history.length) {
+        rows.innerHTML = '<tr><td colspan="5" class="m">Оплат пока нет</td></tr>';
+      } else {
+        const label = { paid: '<span class="pill ok">оплачен</span>', pending: '<span class="pill trial">ожидание</span>', refunded: '<span class="pill off">возврат</span>', failed: '<span class="pill off">сбой</span>' };
+        rows.innerHTML = h.history.map((p) => `
+          <tr>
+            <td class="m">${fmtDate(p.paid_at || p.created_at)}</td>
+            <td>${p.plan}</td>
+            <td>${p.amount}</td>
+            <td>${p.balance_used ? p.balance_used : '—'}</td>
+            <td>${label[p.status] || p.status}</td>
+          </tr>`).join('');
+      }
+    } catch { /* ignore */ }
+  }
+
+  document.getElementById('logout').onclick = async (e) => {
+    e.preventDefault();
+    try { await API.post('/api/logout'); } catch { /* ignore */ }
+    location.href = '/auth.html';
+  };
+
+  load();
+  setInterval(() => { if (ME) load(); }, 60000);
+</script>
+</body>
+</html>

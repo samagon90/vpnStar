@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Вход или регистрация — VpnStar</title>
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="/"><span class="star">✦</span>VpnStar</a>
+    <nav>
+      <ul>
+        <li><a href="/#pricing">Тарифы</a></li>
+        <li><a href="/#features">Возможности</a></li>
+        <li><a href="/#faq">FAQ</a></li>
+      </ul>
+    </nav>
+    <a class="btn btn-primary" href="/account.html">Кабинет</a>
+  </div>
+</header>
+
+<main class="wrap wrap-narrow">
+  <section class="hero" style="padding-top:56px">
+    <div class="badge">🎁 Новым: 7 дней бесплатно, без карты</div>
+    <h1 style="font-size:clamp(1.8rem,4vw,2.6rem)">Вход в <span class="grad">VpnStar</span></h1>
+    <p class="sub">Регистрация без подтверждения почты и номера — только логин и пароль.</p>
+
+    <div class="form-card">
+      <div class="tabs">
+        <button id="tab-login" class="active" type="button">Вход</button>
+        <button id="tab-reg" type="button">Регистрация</button>
+      </div>
+
+      <div id="msg"></div>
+
+      <!-- ЛОГИН -->
+      <form id="form-login">
+        <div class="field">
+          <label>Логин</label>
+          <input name="username" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>Пароль</label>
+          <input name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Войти</button>
+      </form>
+
+      <!-- РЕГИСТРАЦИЯ -->
+      <form id="form-reg" style="display:none">
+        <div class="field">
+          <label>Логин</label>
+          <input name="username" pattern="[a-zA-Z0-9_]{3,20}" required placeholder="например: vasilii_24">
+          <div class="hint">3–20 символов: латиница, цифры, _</div>
+        </div>
+        <div class="field">
+          <label>Пароль</label>
+          <input name="password" type="password" minlength="6" required autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Email <span style="color:#6b7590">(необязательно)</span></label>
+          <input name="email" type="email" placeholder="для напоминаний — без подтверждения">
+        </div>
+        <div class="field">
+          <label>Реферальный код <span style="color:#6b7590">(необязательно)</span></label>
+          <input name="ref" id="ref-input" maxlength="10" placeholder="код друга">
+          <div class="hint">Другу — 20% с ваших оплат, вам — 7 дней бесплатно</div>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Создать аккаунт</button>
+      </form>
+
+      <div class="divider">или</div>
+
+      <div id="tg-wrap">
+        <button class="tg-btn" id="tg-login" type="button">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#22d3ee"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+          Войти через Telegram
+        </button>
+        <div class="hint" style="text-align:center;margin-top:8px" id="tg-hint"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/js/api.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  if (params.get('ref')) document.getElementById('ref-input').value = params.get('ref');
+
+  const tabL = document.getElementById('tab-login');
+  const tabR = document.getElementById('tab-reg');
+  const fL = document.getElementById('form-login');
+  const fR = document.getElementById('form-reg');
+  const msgEl = document.getElementById('msg');
+  function setTab(reg) {
+    tabL.classList.toggle('active', !reg);
+    tabR.classList.toggle('active', !!reg);
+    fL.style.display = reg ? 'none' : 'block';
+    fR.style.display = reg ? 'block' : 'none';
+    hideMsg(msgEl);
+  }
+  tabL.onclick = () => setTab(false);
+  tabR.onclick = () => setTab(true);
+  if (params.get('ref') || params.get('new')) setTab(true);
+
+  fL.onsubmit = async (e) => {
+    e.preventDefault();
+    hideMsg(msgEl);
+    try {
+      await API.post('/api/login', {
+        username: fL.username.value,
+        password: fL.password.value,
+      });
+      location.href = (params.get('plan') ? `/checkout.html?plan=${params.get('plan')}` : '/account.html');
+    } catch (err) {
+      msg(msgEl, err.message);
+    }
+  };
+
+  fR.onsubmit = async (e) => {
+    e.preventDefault();
+    hideMsg(msgEl);
+    try {
+      await API.post('/api/register', {
+        username: fR.username.value,
+        password: fR.password.value,
+        email: fR.email.value || undefined,
+        ref: fR.ref.value || undefined,
+      });
+      location.href = (params.get('plan') ? `/checkout.html?plan=${params.get('plan')}` : '/account.html');
+    } catch (err) {
+      msg(msgEl, err.message);
+    }
+  };
+
+  // Telegram Login Widget
+  (async () => {
+    let cfg = { enabled: false };
+    try { cfg = await API.get('/api/auth/telegram-config'); } catch { /* ignore */ }
+    const hint = document.getElementById('tg-hint');
+    if (!cfg.enabled) {
+      hint.textContent = 'Telegram-вход не настроен — или свяжите аккаунт через бота: /start';
+      document.getElementById('tg-login').style.opacity = '.45';
+      document.getElementById('tg-login').style.pointerEvents = 'none';
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.async = true;
+    script.setAttribute('data-telegram-login', cfg.bot);
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-onauth', 'onTgAuth');
+    script.setAttribute('data-request-access', 'write');
+    const ref = params.get('ref');
+    if (ref) script.setAttribute('data-ref', ref); // кастомный параметр — входит в hash
+    document.body.appendChild(script);
+  })();
+
+  async function onTgAuth(user) {
+    hideMsg(msgEl);
+    try {
+      await API.post('/api/auth/telegram', user);
+      location.href = (params.get('plan') ? `/checkout.html?plan=${params.get('plan')}` : '/account.html');
+    } catch (err) {
+      msg(msgEl, err.message);
+    }
+  }
+  window.onTgAuth = onTgAuth;
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Оплата — VpnStar</title>
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="/"><span class="star">✦</span>VpnStar</a>
+    <nav>
+      <ul>
+        <li><a href="/account.html">Кабинет</a></li>
+        <li><a href="/#faq">FAQ</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap wrap-narrow">
+  <section style="padding-top:48px">
+    <h1 style="font-size:1.9rem;font-weight:800;margin-bottom:28px">💳 Оплата</h1>
+    <div id="msg"></div>
+
+    <div class="panel" id="select-panel">
+      <h3><span class="l">1. Выберите тариф</span></h3>
+      <div class="row" style="gap:14px" id="plan-cards"></div>
+
+      <div class="field" style="margin-top:20px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" id="use-balance" style="width:auto;accent-color:var(--acc)">
+          Оплатить часть/всё реферальным балансом (<b id="bal-amount" class="gr" style="font-size:1rem">…</b>)
+        </label>
+        <div class="hint">Баланс начисляется за приглашённых: 20% с каждой их оплаты.</div>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="pay-btn" style="margin-top:10px">Оплатить по СБП</button>
+      <p class="hint" style="text-align:center;margin-top:10px">СБП QR (без комиссии) · карты РФ (МИР/Visa/MC)</p>
+    </div>
+
+    <div class="panel" id="pay-panel" style="display:none">
+      <h3><span class="l">2. Оплатите</span> <span id="pay-amount" class="gr" style="font-size:1.1rem"></span></h3>
+      <div class="qr-box">
+        <div>
+          <img id="qr" alt="QR СБП" style="width:220px;height:220px;border-radius:14px;border:1px solid var(--card-b);background:#fff;display:none">
+          <div id="mock-box" style="display:none;text-align:center;padding:30px 10px">
+            <div style="font-size:3rem">🧪</div>
+            <p style="color:var(--muted);margin:10px 0 16px">Тестовый режим: оплата не списывается.</p>
+          </div>
+        </div>
+        <div style="flex:1;min-width:240px">
+          <ol style="color:var(--muted);font-size:.93rem;margin:0 0 16px 18px">
+            <li>Нажмите «Оплатить»</li>
+            <li>Сканируйте QR приложением банка (Сбер, Т-Банк, ВТБ…)</li>
+            <li>Подтвердите — зачисление мгновенное</li>
+          </ol>
+          <a class="btn btn-primary" id="yk-link" href="#" target="_blank" rel="noopener" style="display:none">💳 Оплатить (СБП / карта)</a>
+          <button class="btn btn-ghost btn-block" id="mock-confirm" style="display:none;margin-top:10px">✅ Я оплатил (тест)</button>
+          <p class="hint" style="margin-top:12px" id="poll-hint">Проверяем статус автоматически…</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="done-panel" style="display:none;text-align:center;padding:44px 26px">
+      <div style="font-size:3.4rem">✅</div>
+      <h3 style="margin:14px 0 8px;font-size:1.4rem">Оплата получена!</h3>
+      <p style="color:var(--muted);margin-bottom:22px" id="done-text">Подписка активна.</p>
+      <a class="btn btn-primary" href="/account.html">В кабинет — получить QR</a>
+    </div>
+  </section>
+</main>
+
+<script src="/js/api.js"></script>
+<script>
+  let PLANS = [];
+  let selected = null;
+  let balanceCents = 0;
+  let pollTimer = null;
+  const params = new URLSearchParams(location.search);
+
+  const map = { m1: 1, m3: 2, y1: 3 };
+
+  async function init() {
+    try {
+      const me = await API.get('/api/me');
+      balanceCents = me.balance_cents;
+      document.getElementById('bal-amount').textContent = fmtMoney(balanceCents);
+      if (balanceCents === 0) {
+        document.getElementById('use-balance').disabled = true;
+        document.getElementById('use-balance').nextElementSibling && (document.getElementById('use-balance').parentElement.style.opacity = '.5');
+      }
+    } catch (e) {
+      if (e.status === 401) location.href = '/auth.html' + (params.get('plan') ? `?plan=${params.get('plan')}` : '');
+      return;
+    }
+    const r = await API.get('/api/payments/plans');
+    PLANS = r.plans;
+    selected = map[params.get('plan')] || r.plans.find((p) => p.popular)?.id || r.plans[0].id;
+
+    const wrap = document.getElementById('plan-cards');
+    wrap.innerHTML = PLANS.map((p) => `
+      <button class="plan ${p.popular ? 'pop' : ''}" data-id="${p.id}" style="cursor:pointer;padding:18px 20px;min-width:150px;flex:1">
+        <div class="dur">${p.name}</div>
+        <div class="price" style="font-size:1.5rem">${fmtMoney(p.price_cents)}</div>
+      </button>`).join('');
+    wrap.querySelectorAll('.plan').forEach((el) => {
+      if (Number(el.dataset.id) === selected) el.style.borderColor = 'rgba(99,102,241,.8)';
+      el.onclick = () => {
+        selected = Number(el.dataset.id);
+        wrap.querySelectorAll('.plan').forEach((x) => (x.style.borderColor = 'rgba(255,255,255,.09)'));
+        el.style.borderColor = 'rgba(99,102,241,.8)';
+      };
+    });
+
+    document.getElementById('pay-btn').onclick = startPayment;
+  }
+
+  async function startPayment() {
+    const msgEl = document.getElementById('msg');
+    hideMsg(msgEl);
+    const plan = PLANS.find((p) => p.id === selected);
+    try {
+      const r = await API.post('/api/payments', { plan_id: selected, use_balance: document.getElementById('use-balance').checked });
+      if (r.paid) {
+        showDone('Оплачено с реферального баланса — подписка уже активна.');
+        return;
+      }
+      document.getElementById('select-panel').style.display = 'none';
+      document.getElementById('pay-panel').style.display = 'block';
+      document.getElementById('pay-amount').textContent = fmtMoney(r.price_cents);
+      if (r.balance_used) {
+        document.getElementById('pay-amount').textContent += ` (со счёта: −${fmtMoney(r.balance_used)})`;
+      }
+      if (r.mode === 'mock') {
+        document.getElementById('mock-box').style.display = 'block';
+        document.getElementById('mock-confirm').style.display = 'block';
+        document.getElementById('mock-confirm').onclick = async () => {
+          document.getElementById('mock-confirm').disabled = true;
+          const st = await API.get(`/api/payments/${r.checkout_id}`);
+          if (st.status === 'paid') showDone('Подписка активна. QR-профиль — в кабинете.');
+        };
+      } else {
+        const qr = document.getElementById('qr');
+        qr.src = r.qr;
+        qr.style.display = 'block';
+        const link = document.getElementById('yk-link');
+        link.href = r.confirmation_url;
+        link.style.display = 'inline-block';
+        poll(r.checkout_id);
+      }
+    } catch (e) {
+      msg(msgEl, e.message);
+    }
+  }
+
+  function poll(checkoutId) {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const st = await API.get(`/api/payments/${checkoutId}`);
+        if (st.status === 'paid') {
+          clearInterval(pollTimer);
+          showDone(st.subscription ? `Подписка активна до ${fmtDate(st.subscription.expires_at)}.` : 'Подписка активна.');
+        } else if (st.status === 'failed') {
+          clearInterval(pollTimer);
+          document.getElementById('poll-hint').textContent = 'Оплата не прошла. Попробуйте ещё раз.';
+          document.getElementById('pay-panel').style.display = 'none';
+          document.getElementById('select-panel').style.display = 'block';
+        }
+      } catch { /* сеть */ }
+    }, 4000);
+  }
+
+  function showDone(text) {
+    clearInterval(pollTimer);
+    document.getElementById('select-panel').style.display = 'none';
+    document.getElementById('pay-panel').style.display = 'none';
+    document.getElementById('done-panel').style.display = 'block';
+    document.getElementById('done-text').textContent = text;
+  }
+
+  init();
+</script>
+</body>
+</html>
