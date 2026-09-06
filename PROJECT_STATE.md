@@ -39,6 +39,11 @@ android/                наше Android-приложение «Sonic VPN»: р�
                         (Settings → General → Default branch), иначе Actions пустой.
                         Сборка: Actions → Run workflow → APK в Release sonicvpn-android;
                         стабильные ссылки releases/latest/download/SonicVPN-arm64-v8a.apk
+                        ✅ Готово (2026-09-06): сборка успешна (run на d6a4ee9), релиз
+                        «Sonic VPN Android v1.0.0» с 3 APK (33.4/33.8/74.9 MB); ссылки
+                        на help.html/боте/лендинге ЖИВЫЕ. История бага: в sed NDK-шага
+                        потерялась backslash-строка → фикс 7cc4ef6 (мержить ТОЛЬКО этот
+                        вид файла, не ломать строку `          \` перед ndkVersion).
   css/site.css          дизайн-система: Sonic-синий #1e6fff / #45b8ff
   js/api.js             API-хелпер (fetch, API_BASE='' — для split-хостинга на CF Pages)
 server/                 бэкенд (npm start; package.json name=sonic-vpn-server)
@@ -165,9 +170,9 @@ devices/buy + confirm-mock (лимит 3) → PATCH enabled=false/true → DELET
 (AdminVPS/Timeweb, МИР/СБП, автоплатёж) → 2 ssh → 3 `deploy/vps-setup.sh` → 4 3x-ui inbound
 (VLESS Reality 443 + Hy2 8443) → 5 домен sonicvpn.ru + Cloudflare → 6 деплой `.env`+pm2 →
 7 BotFather (sonicvpn_bot, API URL) → 8 Groq-ключ → 9 ЮKassa боевая → 10 чек-лист запуска.
-**Агент:** (0) workflow APK АКТИВЕН (.github/workflows/main.yml) — осталось дождаться
-первой сборки (владелец нажимает Actions → Run workflow) и проверить, что
-SonicVPN-*.apk появился в Releases — иначе ссылки на help.html 404;
+**Агент:** (0) APK ПОПУБЛИКОВАН (2026-09-06, релиз sonicvpn-android) — ссылки живые;
+при смене иконки/версии: push в песочницу + напомнить владельцу Actions → Run workflow
+(новым раном, НЕ «Re-run jobs» — re-run крутит старый коммит);
 (1) после деплоя VPS — проверить 3x-ui-ветку вживую (add/update/delClient, shape API);
 (2) v2 из PLAN.md: вывод реферального баланса, автопродление, 2-й узел, YouTube-узел, Smart TV.
 
