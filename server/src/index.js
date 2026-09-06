@@ -9,6 +9,7 @@ import payRoutes from './routes/pay.js';
 import accountRoutes from './routes/account.js';
 import devicesRoutes from './routes/devices.js';
 import webhookRoutes from './routes/webhooks.js';
+import adminRoutes from './routes/admin.js';
 import { startBot } from './bot.js';
 import { setBot } from './botref.js';
 import { startCron } from './cron.js';
@@ -46,6 +47,7 @@ const requireAuth = (req, res, next) => {
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 app.use('/api', authRoutes);
+app.use('/api/admin', adminRoutes); // ДО общего requireAuth: админка входит по своему токену
 app.use('/api/payments', requireAuth, payRoutes);
 app.use('/api', requireAuth, accountRoutes);
 app.use('/api/devices', requireAuth, devicesRoutes);

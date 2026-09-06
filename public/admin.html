@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonic VPN · Админ-панель</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#0a0e1a;--card:#111827;--card2:#0f1524;--line:#1f2a44;--tx:#e8ecf7;--mut:#8b96b3;--acc:#6c8cff;--ok:#3ddc84;--warn:#ffc53d;--err:#ff5d6c}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:22px;margin-bottom:4px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:22px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card .v{font-size:22px;font-weight:700}
+.card .k{color:var(--mut);font-size:12.5px}
+.card .v.ok{color:var(--ok)} .card .v.warn{color:var(--warn)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:24px}
+.panel h2{font-size:16px;margin-bottom:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+label{display:block;font-size:12.5px;color:var(--mut);margin-bottom:4px}
+input,select{background:var(--card2);border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:10px 12px;font-size:14px;outline:none;min-width:0}
+input:focus,select:focus{border-color:var(--acc)}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:14px;cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--tx);font-weight:400}
+.btn.danger{background:transparent;border:1px solid var(--err);color:var(--err)}
+.btn:disabled{opacity:.5;cursor:default}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{color:var(--mut);font-weight:500;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:hover td{background:#131c30}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600}
+.pill.trial{background:#2a3550;color:#9db4ff}
+.pill.plan{background:#12351f;color:var(--ok)}
+.pill.gift{background:#3a2d10;color:var(--warn)}
+.pill.off{background:#3a1420;color:var(--err)}
+.act{display:flex;gap:6px;flex-wrap:wrap}
+.act button{background:var(--card2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:5px 9px;font-size:13px;cursor:pointer}
+.act button:hover{border-color:var(--acc)}
+.act button.del:hover{border-color:var(--err);color:var(--err)}
+.mut{color:var(--mut)}
+.hidden{display:none!important}
+.modal{position:fixed;inset:0;background:rgba(4,8,18,.8);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modal .box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;max-width:560px;width:100%;max-height:88vh;overflow:auto}
+.modal h3{font-size:17px;margin-bottom:14px}
+.qr{background:#fff;border-radius:12px;padding:8px;display:inline-block}
+.qr img{display:block;width:250px;height:250px}
+.copyline{display:flex;gap:8px;margin-top:10px}
+.copyline input{flex:1;font-size:12px}
+.dev{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.dev .t{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.dev .t b{font-size:14px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);padding:12px 20px;border-radius:12px;font-size:14px;z-index:99;opacity:0;transition:opacity .25s}
+.toast.show{opacity:1}
+#gate{max-width:400px;margin:12vh auto}
+#gate input{width:100%}
+#gate .btn{width:100%;margin-top:12px}
+.out{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:14px;font-size:14px}
+.out .line{display:flex;gap:8px;margin-bottom:6px;align-items:center}
+.out .line b{min-width:70px;color:var(--mut);font-weight:500}
+.err{color:var(--err)}
+.search{width:100%;margin-bottom:14px}
+@media(max-width:700px){table{display:block;overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- Вход -->
+<div id="gate">
+  <h1>🛡️ Sonic VPN · Админка</h1>
+  <p class="sub" style="margin:6px 0 18px">Вход только по токену из <code>ADMIN_TOKEN</code> в .env</p>
+  <label>Токен</label>
+  <input id="tok" type="password" placeholder="вставьте токен" autocomplete="off">
+  <button class="btn" id="login">Войти</button>
+  <p class="err" id="gateErr" style="margin-top:10px"></p>
+</div>
+
+<!-- Панель -->
+<div id="app" class="hidden">
+  <h1>🛡️ Sonic VPN · Админка</h1>
+  <p class="sub">База клиентов и бесплатные ключи · <span id="who"></span> · <button class="btn ghost" style="padding:4px 10px;font-size:12px" onclick="ADMIN.logout()">выйти</button></p>
+
+  <div class="cards" id="stats"></div>
+
+  <div class="panel">
+    <h2>🎁 Сгенерировать бесплатный ключ</h2>
+    <div class="row">
+      <div><label>Логин</label><input id="gUser" placeholder="friend1" style="width:150px"><button class="btn ghost" onclick="ADMIN.rand('gUser')" title="Случайный логин">🎲</button></div>
+      <div><label>Пароль</label><input id="gPass" placeholder="минимум 6 символов" style="width:170px"><button class="btn ghost" onclick="ADMIN.rand('gPass')" title="Случайный пароль">🎲</button></div>
+      <div><label>Срок</label>
+        <select id="gMonths"><option value="1">1 месяц</option><option value="3" selected>3 месяца</option><option value="6">6 месяцев</option></select>
+      </div>
+      <button class="btn" id="gBtn" onclick="ADMIN.genKey()">Сгенерировать</button>
+    </div>
+    <div id="gOut"></div>
+  </div>
+
+  <div class="panel">
+    <h2>👥 Клиенты</h2>
+    <input class="search" id="q" placeholder="Поиск по логину или email…" oninput="ADMIN.debounce()">
+    <table>
+      <thead><tr>
+        <th>Логин</th><th>Создан</th><th>Подписка</th><th>Баланс</th><th>Оплатил</th><th>Устройства</th><th>Рефералы</th><th></th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<!-- Модалка QR -->
+<div class="modal hidden" id="modal" onclick="if(event.target===this)ADMIN.closeModal()">
+  <div class="box" id="mBox"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const ADMIN = {
+  tok: sessionStorage.getItem('vs_admin') || '',
+  esc: (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),
+  money: (c) => (Number(c)/100).toLocaleString('ru-RU') + ' ₽',
+  date: (iso) => iso ? new Date(iso).toLocaleDateString('ru-RU') : '—',
+
+  async api(path, opts = {}) {
+    opts.headers = Object.assign({'Content-Type': 'application/json', 'x-admin-token': this.tok}, opts.headers || {});
+    const r = await fetch('/api/admin' + path, opts);
+    let d = {};
+    try { d = await r.json(); } catch {}
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    return d;
+  },
+
+  toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(this._tt); this._tt = setTimeout(() => t.classList.remove('show'), 2600);
+  },
+  copy(text, el) {
+    navigator.clipboard.writeText(text).then(() => this.toast('Скопировано ✓')).catch(() => this.toast('Не удалось скопировать'));
+  },
+
+  rand(id) {
+    if (id === 'gUser') {
+      document.getElementById(id).value = 'user' + Math.floor(1000 + Math.random() * 9000);
+    } else {
+      const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+      let s = ''; for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
+      document.getElementById(id).value = s;
+    }
+  },
+
+  async login() {
+    const tok = document.getElementById('tok').value.trim();
+    if (!tok) return;
+    try {
+      await this.api('/stats');
+      sessionStorage.setItem('vs_admin', tok);
+      this.tok = tok;
+      this.showApp();
+    } catch (e) {
+      document.getElementById('gateErr').textContent = 'Неверный токен. Проверьте ADMIN_TOKEN в .env';
+    }
+  },
+  logout() {
+    sessionStorage.removeItem('vs_admin');
+    this.tok = '';
+    location.reload();
+  },
+  showApp() {
+    document.getElementById('gate').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    this.refresh();
+  },
+
+  kindLabel(k) {
+    return { trial: '<span class="pill trial">пробник</span>', plan: '<span class="pill plan">оплачено</span>', gift: '<span class="pill gift">подарок</span>' }[k] || '<span class="pill trial">—</span>';
+  },
+
+  async refresh() {
+    try {
+      const s = await this.api('/stats');
+      document.getElementById('stats').innerHTML = `
+        <div class="card"><div class="v">${s.total_users}</div><div class="k">всего клиентов</div></div>
+        <div class="card"><div class="v ok">${s.active}</div><div class="k">активные подписки</div></div>
+        <div class="card"><div class="v">${s.trial}</div><div class="k">на пробнике</div></div>
+        <div class="card"><div class="v ${s.expiring_soon ? 'warn' : ''}">${s.expiring_soon}</div><div class="k">заканчиваются ≤ 3 дн</div></div>
+        <div class="card"><div class="v">${s.devices_active}</div><div class="k">активных устройств</div></div>
+        <div class="card"><div class="v ok">${this.money(s.total_paid_cents)}</div><div class="k">привлечено</div></div>`;
+      await this.loadUsers();
+    } catch (e) {
+      if (String(e.message).includes('токен')) this.logout();
+    }
+  },
+
+  _t: null,
+  debounce() { clearTimeout(this._t); this._t = setTimeout(() => this.loadUsers(), 350); },
+
+  async loadUsers() {
+    const s = document.getElementById('q').value.trim();
+    let users = [];
+    try { users = (await this.api('/users?search=' + encodeURIComponent(s))).users; }
+    catch (e) { this.toast(e.message); return; }
+    const tb = document.getElementById('tbody');
+    if (!users.length) { tb.innerHTML = '<tr><td colspan="8" class="mut">Пока пусто</td></tr>'; return; }
+    tb.innerHTML = users.map((u) => `
+      <tr>
+        <td><b>${this.esc(u.username)}</b>${u.tg ? ' <span class="mut" title="привязан Telegram">✈️</span>' : ''}<br><span class="mut" style="font-size:11.5px">${this.esc(u.email)}</span></td>
+        <td>${this.date(u.created_at)}</td>
+        <td>${u.sub ? this.kindLabel(u.sub.kind) + ' <span class="mut">' + this.date(u.sub.expires_at) + ' · ' + u.days_left + ' дн</span>' : '<span class="pill off">нет</span>'}</td>
+        <td>${this.money(u.balance_cents)}</td>
+        <td>${this.money(u.paid_cents)}</td>
+        <td>${u.devices_active}/${u.devices_total}</td>
+        <td>${u.referrals}</td>
+        <td><div class="act">
+          <button onclick="ADMIN.showDevices(${u.id},'${this.esc(u.username)}')" title="QR-коды устройств">📷 QR</button>
+          <button onclick="ADMIN.extend(${u.id})" title="Продлить подписку">+дни</button>
+          <button onclick="ADMIN.pw(${u.id},'${this.esc(u.username)}')" title="Сменить пароль">🔑</button>
+          <button class="del" onclick="ADMIN.del(${u.id},'${this.esc(u.username)}')" title="Удалить">✕</button>
+        </div></td>
+      </tr>`).join('');
+  },
+
+  devCard(d) {
+    return `<div class="dev">
+      <div class="t"><b>${this.esc(d.name)}</b> ${d.enabled === false ? '<span class="pill off">заблокировано</span>' : '<span class="pill plan">активно</span>'}</div>
+      <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <span class="qr"><img src="${d.qr}" alt="QR"></span>
+        <div style="flex:1;min-width:220px">
+          <label>VLESS-ссылка (сканер QR или вставить в приложение)</label>
+          <div class="copyline"><input readonly value="${this.esc(d.vless_link)}"><button class="btn" onclick="ADMIN.copy(this.previousElementSibling.value)">Копировать</button></div>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  async showDevices(id, name) {
+    const box = document.getElementById('mBox');
+    box.innerHTML = '<h3>QR-коды: ' + this.esc(name) + '</h3><p class="mut">Загружаю…</p>';
+    document.getElementById('modal').classList.remove('hidden');
+    try {
+      const d = await this.api('/users/' + id + '/devices');
+      box.innerHTML = '<h3>QR-коды: ' + this.esc(d.username) + '</h3>' +
+        (d.devices.length ? d.devices.map((x) => this.devCard(x)).join('') : '<p class="mut">Устройств нет</p>') +
+        '<button class="btn ghost" style="margin-top:8px" onclick="ADMIN.closeModal()">Закрыть</button>';
+    } catch (e) { box.innerHTML = '<p class="err">' + this.esc(e.message) + '</p><button class="btn ghost" onclick="ADMIN.closeModal()">Закрыть</button>'; }
+  },
+  closeModal() { document.getElementById('modal').classList.add('hidden'); },
+
+  async genKey() {
+    const u = document.getElementById('gUser').value.trim().toLowerCase();
+    const p = document.getElementById('gPass').value;
+    const m = document.getElementById('gMonths').value;
+    const out = document.getElementById('gOut');
+    if (!u) { out.innerHTML = '<div class="out err">Введите логин (или жмите 🎲)</div>'; return; }
+    const btn = document.getElementById('gBtn');
+    btn.disabled = true; btn.textContent = 'Генерирую…';
+    try {
+      const d = await this.api('/users', { method: 'POST', body: JSON.stringify({ username: u, password: p, months: Number(m) }) });
+      out.innerHTML = `<div class="out">
+        <div class="line"><b>Логин</b> ${this.esc(d.username)} <button class="btn ghost" style="padding:2px 8px" onclick="ADMIN.copy('${this.esc(d.username)}')">📋</button></div>
+        <div class="line"><b>Пароль</b> ${this.esc(d.password)} <button class="btn ghost" style="padding:2px 8px" onclick="ADMIN.copy('${this.esc(d.password)}')">📋</button></div>
+        <div class="line"><b>Срок</b> ${this.date(d.expires_at)}</div>
+        <div class="line"><b>Реф-код</b> ${this.esc(d.referral_code)}</div>
+      </div>` + this.devCard(d.device);
+      this.toast('Ключ создан ✓');
+      this.refresh();
+    } catch (e) {
+      out.innerHTML = '<div class="out err">' + this.esc(e.message) + '</div>';
+    }
+    btn.disabled = false; btn.textContent = 'Сгенерировать';
+  },
+
+  async extend(id) {
+    const s = prompt('Продлить на сколько дней? (1–365)', '30');
+    if (s === null) return;
+    const days = Math.floor(Number(s));
+    if (!days || days < 1 || days > 365) return this.toast('Число дней: 1–365');
+    try {
+      const d = await this.api('/users/' + id + '/extend', { method: 'POST', body: JSON.stringify({ days }) });
+      this.toast('Продлено до ' + this.date(d.expires_at) + ' ✓');
+      this.refresh();
+    } catch (e) { this.toast(e.message); }
+  },
+
+  async pw(id, name) {
+    const p = prompt('Новый пароль для ' + name + ' (минимум 6 символов):');
+    if (!p) return;
+    try {
+      await this.api('/users/' + id + '/reset-password', { method: 'POST', body: JSON.stringify({ password: p }) });
+      this.toast('Пароль сменён ✓');
+    } catch (e) { this.toast(e.message); }
+  },
+
+  async del(id, name) {
+    if (!confirm('Удалить клиента «' + name + '»? Все его устройства, подписка и оплаты будут стёрты. Безвозвратно.')) return;
+    try {
+      await this.api('/users/' + id, { method: 'DELETE' });
+      this.toast('Удалено ✓');
+      this.refresh();
+    } catch (e) { this.toast(e.message); }
+  },
+};
+
+document.getElementById('login').onclick = () => ADMIN.login();
+document.getElementById('tok').addEventListener('keydown', (e) => { if (e.key === 'Enter') ADMIN.login(); });
+if (ADMIN.tok) {
+  ADMIN.api('/stats').then(() => ADMIN.showApp()).catch(() => { sessionStorage.removeItem('vs_admin'); ADMIN.tok = ''; });
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ADMIN.closeModal(); });
+</script>
+</body>
+</html>

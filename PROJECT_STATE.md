@@ -46,6 +46,10 @@ android/                наше Android-приложение «Sonic VPN»: р�
                         вид файла, не ломать строку `          \` перед ndkVersion).
   css/site.css          дизайн-система: Sonic-синий #1e6fff / #45b8ff
   js/api.js             API-хелпер (fetch, API_BASE='' — для split-хостинга на CF Pages)
+  admin.html            АДМИН-ПАНЕЛЬ (не в меню сайта; вход по ADMIN_TOKEN, sessionStorage):
+                        статистика, таблица клиентов с поиском, генерация бесплатных ключей
+                        (+🎲 логин/пароль), QR-модалки устройств, +дни/🔑 пароль/✕ удаление
+  404.html (в public/)  стилизованная 404 для GitHub Pages
 server/                 бэкенд (npm start; package.json name=sonic-vpn-server)
   .env.example          шаблон всех переменных (с примерами Groq/OpenRouter/Gemini)
   src/index.js          Express: cookie-сессии, CORS (CORS_ORIGINS), статика, роутеры, запуск бота/cron
@@ -70,6 +74,13 @@ server/                 бэкенд (npm start; package.json name=sonic-vpn-ser
   src/routes/devices.js / (список+лимиты), POST / (добавить, чек лимита), POST /buy (+1 устройство,
                         ДО /:id!), /:id (профиль+QR), /:id PATCH (name/enabled), DELETE (свободит слот)
   src/routes/webhooks.js ЮKassa webhook (payment.succeeded/canceled)
+  src/routes/admin.js   АДМИН-ПАНЕЛЬ (доступ по ADMIN_TOKEN: заголовок x-admin-token или Bearer,
+                        timingSafeEqual; 503 если токен не задан; mount ДО общего requireAuth!):
+                        GET /stats, GET /users?search (100 последних), POST /users (бесплатный
+                        ключ: user+gift 1/3/6мес+устройство+QR), GET /users/:id/devices (QR всех),
+                        POST /users/:id/extend {days}, POST /users/:id/reset-password,
+                        DELETE /users/:id (devices xui+sessions+subs+payments+events+notifications,
+                        referrer_id→NULL)
   src/vpn/provider.js   провайдер: mock (детерминированные VLESS+Reality, uuid от user+device,
                         remark #SonicVPN·имя) / 3x-ui; provisionDevice, profile, setDeviceEnabled, deleteDevice
   src/vpn/xui.js        API-клиент 3x-ui: 1 устройство = 1 клиент (limitIp:1), add/update/delClient
@@ -87,7 +98,7 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
 1. Сайт работает в РФ без VPN (архитектура: Cloudflare-прокси, origin скрыт; CORS для CF Pages)
 2. Регистрация без почты/номера (email опционален, без верификации)
 3. Оплата СБП: ЮKassa (sbp+card, webhook, 0,4%) + `PAYMENT_MODE=mock` для разработки
-4. **Ровно 3 тарифа**: 1 мес 199 ₽ / 3 мес 499 ₽ / 12 мес 1 499 ₽ + **7 дней пробника** новым
+4. **Ровно 3 тарифа**: 1 мес 199 ₽ / 3 мес 499 ₽ / 6 мес 899 ₽ + **7 дней пробника** новым
 5. **Рефералка 20%** со ВСЕХ оплат приглашённых (вкл. продления И докупку устройств) →
    на внутренний баланс, балансом можно платить (в т.ч. частично, `use_balance`)
 6. TG: канал (ссылки в футере/боте), бот (покупка СБП, QR, рефералка, синхронизация),
@@ -99,6 +110,10 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
    докупка +1 = 99 ₽ (до 8 доп. слотов, всего до 10), **пользователь сам блокирует/включает/
    удаляет** устройства (кабинет + `/block N` `/unblock N` в боте); возврат откатывает слот
 10. Напоминания 5/2/1 день (TG + email), гарантия возврата 3 дня (admin-токен), no-logs
+10a. **Админ-панель** (`public/admin.html` + `server/src/routes/admin.js`): вход по ADMIN_TOKEN
+    (не в меню сайта), статистика, **база клиентов** с поиском (подписка/срок/баланс/оплата/
+    устройства/рефералы), **генерация бесплатных ключей** (1/3/6 мес + готовый QR VLESS),
+    продление +N дней, смена пароля, удаление клиента
 11. **Своё Android-приложение «Sonic VPN»**: ребрендинг v2rayNG 2.2.6 (GPLv3) — приложение
     `ru.sonicvpn.app`, наша иконка/цвета; сборка — GitHub Actions (workflow sonicvpn-android),
     APK падает в GitHub Release. Сборка в песочнице НЕПРОВЕРЕНА (нет доступа к Maven/SDK) —
