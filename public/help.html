@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Как подключиться — Sonic VPN</title>
+<meta name="description" content="Подключение Sonic VPN за 2 минуты: наше приложение для Android (бесплатно), Streisand или Hiddify для iPhone, v2rayN для Windows. Пошаговая инструкция.">
+<link rel="icon" type="image/png" href="/img/logo.png">
+<link rel="stylesheet" href="/css/site.css">
+<style>
+  .howto{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:820px){.howto{grid-template-columns:1fr}}
+  .dev-panel .dev-ic{width:54px;height:54px;border-radius:14px;background:var(--grad);display:grid;place-items:center;font-size:26px;margin-bottom:14px}
+  .steps-list{margin:14px 0 0;padding:0;list-style:none;counter-reset:st}
+  .steps-list li{counter-increment:st;position:relative;padding:0 0 14px 44px;color:var(--muted);font-size:.94rem}
+  .steps-list li::before{content:counter(st);position:absolute;left:0;top:-2px;width:30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;font-weight:700;display:grid;place-items:center;font-size:.9rem}
+  .steps-list b{color:var(--txt)}
+  .store-btn{display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border-radius:12px;background:var(--grad);color:#fff;font-weight:700;text-decoration:none;font-size:.95rem;box-shadow:0 6px 20px rgba(30,111,255,.4)}
+  .store-btn.alt{background:rgba(255,255,255,.08);border:1px solid var(--card-b);box-shadow:none}
+  .store-btn small{opacity:.75;font-weight:500}
+  .note{background:rgba(30,111,255,.1);border:1px solid rgba(30,111,255,.35);border-radius:12px;padding:12px 16px;font-size:.9rem;color:var(--muted);margin-top:14px}
+  .note b{color:var(--txt)}
+</style>
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="/"><img src="/img/logo.png" alt="Sonic VPN">Sonic VPN</a>
+    <nav>
+      <ul>
+        <li><a href="/#pricing">Тарифы</a></li>
+        <li><a href="/#faq">FAQ</a></li>
+        <li><a href="/account.html">Кабинет</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="hero" style="padding-top:56px">
+    <h1>Подключение за <span class="grad">2 минуты</span></h1>
+    <p class="sub">Ваш QR-код уже готов — скачайте приложение под ваш телефон и отсканируйте. Всё, вы в сети.</p>
+  </div>
+
+  <!-- ШАГ 1 -->
+  <section class="panel">
+    <h3><span class="l">1️⃣ Получите ваш QR-код</span></h3>
+    <p style="color:var(--muted);margin-bottom:0">
+      На сайте: <b style="color:var(--txt)">Кабинет → «Мои устройства» → 📷 QR</b>.<br>
+      Или в Telegram-боте: <b style="color:var(--txt)">«📱 Мои устройства» → кнопка QR</b> — фото придёт прямо в чат.
+      У каждого устройства свой QR — на iPhone сканируйте QR для iPhone, на телефоне Android — для Android.
+    </p>
+  </section>
+
+  <!-- ШАГ 2: приложения -->
+  <section>
+    <h2 class="h2">2️⃣ Установите приложение</h2>
+    <p class="h2-sub">Выберите свой телефон:</p>
+    <div class="howto">
+
+      <!-- ANDROID -->
+      <div class="panel dev-panel">
+        <div class="dev-ic">🤖</div>
+        <h3 style="margin-bottom:4px">Android — наше приложение «Sonic VPN»</h3>
+        <p class="hint" style="margin-bottom:14px">Бесплатно, от 4 ГБ не нужен, ставится в одно касание. Это официальный клиент Sonic VPN (создан на базе открытого v2rayNG).</p>
+        <a class="store-btn" href="https://github.com/samagon90/vpnStar/releases/latest/download/SonicVPN-arm64-v8a.apk" target="_blank" rel="noopener">⬇ Скачать Sonic VPN для Android <small>(APK)</small></a>
+        <div class="note" style="margin-top:10px">
+          При открытии файла телефон попросит <b>«Разрешить установку из неизвестных источников»</b> — это нормально для APK-файлов, разрешите один раз.
+        </div>
+        <ol class="steps-list">
+          <li>Скачайте файл выше (откроется в браузере телефона).</li>
+          <li>Нажмите <b>«Установить»</b>, разрешите неизвестные источники.</li>
+          <li>Откройте приложение <b>«Sonic VPN»</b>.</li>
+          <li>Нажмите <b>＋ → «Сканировать QR»</b> и отсканируйте ваш QR из кабинета/бота.</li>
+          <li>Тапните по профилю и включите VPN — <b>готово</b>.</li>
+        </ol>
+        <p class="hint" style="margin-top:6px">Старый телефон (до 2017 г.)? <a href="https://github.com/samagon90/vpnStar/releases/latest/download/SonicVPN-armeabi-v7a.apk" target="_blank" rel="noopener">Скачайте версию для старых устройств</a>.</p>
+      </div>
+
+      <!-- IOS -->
+      <div class="panel dev-panel">
+        <div class="dev-ic">📱</div>
+        <h3 style="margin-bottom:4px">iPhone / iPad</h3>
+        <p class="hint" style="margin-bottom:14px">В App Store не бывает сторонних VPN-приложений «от сервиса» — все используют проверенные открытые клиенты. Мы рекомендуем <b style="color:var(--txt)">Streisand</b> (простой, быстрый, бесплатен).</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="store-btn" href="https://apps.apple.com/ru/app/streisand/id6450534064" target="_blank" rel="noopener">🍎 Streisand — App Store</a>
+          <a class="store-btn alt" href="https://apps.apple.com/us/app/hiddify-proxy-vpn/id6596777532" target="_blank" rel="noopener">Hiddify — альтернатива</a>
+        </div>
+        <ol class="steps-list">
+          <li>Установите <b>Streisand</b> из App Store (кнопка выше, бесплатно).</li>
+          <li>Откройте Streisand → кнопка <b>＋</b> → <b>«Изображение»</b> (или камера).</li>
+          <li>Покажите камере ваш QR-код (со Screenshots-скриншота кабинета тоже подойдёт).</li>
+          <li>Профиль «SonicVPN» появится в списке — <b>включите переключатель VPN</b>.</li>
+          <li>Откройте YouTube для проверки — <b>готово</b>.</li>
+        </ol>
+        <div class="note">Если Streisand вдруг «упрётся» — поставьте <b>Hiddify</b> (кнопка выше): там тоже <b>＋ → сканировать QR</b>.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ШАГ 3 -->
+  <section class="panel" style="margin-top:18px">
+    <h3><span class="l">3️⃣ Готово! Как пользоваться дальше</span></h3>
+    <ul class="steps-list">
+      <li><b>Подключаться</b> — один тап по профилю/переключателю в приложении. Профиль сохраняется, ничего переустанавливать не нужно.</li>
+      <li><b>Купили ещё устройство?</b> В кабинете оно появится отдельным QR — добавьте его в приложение так же (＋ → QR).</li>
+      <li><b>Подозреваете, что устройством пользуются без вас?</b> В кабинете → «Заблокировать» (или /block в боте) — это устройство перестанет подключаться, остальные работают.</li>
+      <li><b>Подписка закончилась</b> — VPN отключится сам, продлите в кабинете или боте по СБП-QR.</li>
+    </ul>
+  </section>
+
+  <!-- ДРУГИЕ УСТРОЙСТВА -->
+  <section>
+    <h2 class="h2">Компьютеры и не только</h2>
+    <p class="h2-sub">Тот же QR-код работает везде:</p>
+    <div class="howto">
+      <div class="panel dev-panel">
+        <div class="dev-ic">🖥</div>
+        <h3>Windows</h3>
+        <p class="hint" style="margin-bottom:14px">Рекомендуем <b style="color:var(--txt)">v2rayN</b> — тот же движок, что у нашего приложения.</p>
+        <a class="store-btn alt" href="https://github.com/2dust/v2rayN/releases" target="_blank" rel="noopener">⬇ v2rayN (GitHub)</a>
+        <ol class="steps-list" style="margin-top:14px">
+          <li>Скачайте <b>v2rayN</b> (в релизах файл <code>win-x64-Setup.msi</code>).</li>
+          <li>В v2rayN: <b>Скопировать</b> → «Импорт из буфера» — или сканируйте QR-скриншот.</li>
+          <li>Включите VPN правой кнопкой по трею.</li>
+        </ol>
+      </div>
+      <div class="panel dev-panel">
+        <div class="dev-ic">💻</div>
+        <h3>macOS / Linux</h3>
+        <p class="hint" style="margin-bottom:14px">Рекомендуем <b style="color:var(--txt)">Hiddify</b> — удобный кроссплатформенный клиент.</p>
+        <a class="store-btn alt" href="https://github.com/hiddify/hiddify-next/releases" target="_blank" rel="noopener">⬇ Hiddify (GitHub)</a>
+        <ol class="steps-list" style="margin-top:14px">
+          <li>Скачайте <b>Hiddify</b> под вашу систему (dmg / deb / AppImage).</li>
+          <li>Утилита → <b>Импорт конфигурации</b> (или QR-скриншот).</li>
+          <li>Включите переключатель VPN — готово.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ЧАСТЫЕ ВОПРОСЫ ПО ПОДКЛЮЧЕНИЮ -->
+  <section id="connect-faq" style="padding-bottom:60px">
+    <h2 class="h2">Не подключается?</h2>
+    <div class="faq" style="margin-top:24px">
+      <details open>
+        <summary>Телефон просит «Разрешить неизвестные источники»</summary>
+        <p>Это нормально: наше приложение распространяется напрямую (как все VPN-сервисы для РФ), а не через Google Play. Разрешите один раз — дальше установится автоматически. Источник: только наш GitHub (репозиторий vpnStar → Releases).</p>
+      </details>
+      <details>
+        <summary>Отсканировал QR, а YouTube не открывается</summary>
+        <p>Проверьте: (1) включён ли сам VPN-переключатель в приложении; (2) подписка активна (кабинет); (3) устройство не заблокировано. Если всё верно — напишите в бот «❓ Поддержка» (нейросеть), разберёмся за минуту.</p>
+      </details>
+      <details>
+        <summary>Можно ли один QR на два телефона?</summary>
+        <p>Технически — да, но лучше нет: у каждого устройства должен быть <b>свой</b> QR (в кабинете добавляете сколько нужно, до 10). Свои QR можно по отдельности блокировать — чужие — не будете знать.</p>
+      </details>
+      <details>
+        <summary>А на Smart TV?</summary>
+        <p>Там нужны специальные профили (Happ/V2RayTun) — напишите в бот «хочу TV», выдадим настроенный профиль вручную (v2-фича).</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div class="row" style="gap:18px">
+        <a href="/#pricing">Тарифы</a>
+        <a href="/#faq">FAQ</a>
+        <a href="/help.html">Как подключиться</a>
+        <a href="/auth.html">Войти</a>
+      </div>
+      <div class="row" style="gap:18px">
+        <a href="https://t.me/sonicvpn_channel" target="_blank">📣 Telegram-канал</a>
+        <a href="https://t.me/sonicvpn_bot" target="_blank">🤖 Бот и поддержка</a>
+      </div>
+    </div>
+    <p class="disclaimer">Sonic VPN · No-logs · Серверы за рубежом · Поддержка 24/7 в Telegram (нейросеть)</p>
+  </div>
+</footer>
+</body>
+</html>

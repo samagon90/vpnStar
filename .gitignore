@@ -6,3 +6,7 @@ data/
 server/.env
 .DS_Store
 npm-debug.log*
+
+# android tooling (клон v2rayNG и node-зависимости для иконок — не коммитятся)
+android/v2rayNG/
+android/node_modules/

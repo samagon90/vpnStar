@@ -1,0 +1,11 @@
+{
+  "name": "sonicvpn-android-tooling",
+  "private": true,
+  "description": "Утилиты для сборки ребрандированного клиента Sonic VPN (иконки). Сборка APK — через GitHub Actions (.github/workflows/sonicvpn-android.yml)",
+  "scripts": {
+    "icons": "node resize-icons.js"
+  },
+  "dependencies": {
+    "sharp": "^0.35.4"
+  }
+}

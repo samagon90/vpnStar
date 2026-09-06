@@ -24,9 +24,19 @@ Node.js 22, Express, **встроенный `node:sqlite`** (без нативн
 qrcode (QR), frontend — чистый HTML/CSS/JS без сборки.
 
 ```
-public/                 сайт (статика): index (лендинг), auth, account (кабинет), checkout
+public/                 сайт (статика): index (лендинг), auth, account (кабинет), checkout,
+                        help.html («Как подключиться»: APK Sonic VPN, Streisand/Hiddify iOS, v2rayN)
   img/logo.png          логотип. ⚠️ ГЕНЕРИРОВАННЫЙ плейсхолдер (твой исходник так и не прилетел
                         в песочницу) — заменить файл = обновить бренд везде (шапки, favicon)
+android/                наше Android-приложение «Sonic VPN»: ребрендинг v2rayNG 2.2.6 (GPLv3).
+                        branding/ (иконки+цвета, overlay), icon-source.png, resize-icons.js,
+                        workflow/sonicvpn-android.yml — GitHub-воркфлоу СБОРКИ APK.
+                        ⚠️ Воркфлоу НЕ АКТИВИРОВАН на GitHub: песочница не может пушить
+                        .github/workflows/ (нет workflows-прав у GitHub App). Владелец
+                        добавляет файл через GitHub Web (Add file → .github/workflows/
+                        sonicvpn-android.yml, содержимое из android/workflow/) — 2 минуты.
+                        Дальше: Actions → Run workflow → APK в Release sonicvpn-android;
+                        стабильные ссылки releases/latest/download/SonicVPN-arm64-v8a.apk
   css/site.css          дизайн-система: Sonic-синий #1e6fff / #45b8ff
   js/api.js             API-хелпер (fetch, API_BASE='' — для split-хостинга на CF Pages)
 server/                 бэкенд (npm start; package.json name=sonic-vpn-server)
@@ -82,6 +92,14 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
    докупка +1 = 99 ₽ (до 8 доп. слотов, всего до 10), **пользователь сам блокирует/включает/
    удаляет** устройства (кабинет + `/block N` `/unblock N` в боте); возврат откатывает слот
 10. Напоминания 5/2/1 день (TG + email), гарантия возврата 3 дня (admin-токен), no-logs
+11. **Своё Android-приложение «Sonic VPN»**: ребрендинг v2rayNG 2.2.6 (GPLv3) — приложение
+    `ru.sonicvpn.app`, наша иконка/цвета; сборка — GitHub Actions (workflow sonicvpn-android),
+    APK падает в GitHub Release. Сборка в песочнице НЕПРОВЕРЕНА (нет доступа к Maven/SDK) —
+    запустить workflow вручную и убедиться, что APK выложился
+12. **Страница «Как подключиться»** (`public/help.html`): Android (наш APK + инструкция),
+    iOS (Streisand/Hiddify из App Store + инструкция), Windows (v2rayN), macOS/Linux (Hiddify),
+    FAQ по подключению; ссылки на неё: шапка/футер лендинга, кабинет (раздел устройств),
+    бот (/start, /help), AI-поддержка (ответы про подключение/устройства)
 
 ## 4. Бизнес-правила (меняются только в `server/src/config.js`)
 
@@ -145,8 +163,10 @@ devices/buy + confirm-mock (лимит 3) → PATCH enabled=false/true → DELET
 (AdminVPS/Timeweb, МИР/СБП, автоплатёж) → 2 ssh → 3 `deploy/vps-setup.sh` → 4 3x-ui inbound
 (VLESS Reality 443 + Hy2 8443) → 5 домен sonicvpn.ru + Cloudflare → 6 деплой `.env`+pm2 →
 7 BotFather (sonicvpn_bot, API URL) → 8 Groq-ключ → 9 ЮKassa боевая → 10 чек-лист запуска.
-**Агент:** после деплоя — проверить 3x-ui-ветку вживую, при необходимости подправить shape API;
-v2 из PLAN.md: вывод реферального баланса, автопродление, 2-й узел, YouTube-узел, устройства-список в 3x-ui.
+**Агент:** (0) напомнить владельцу активировать workflow APK (см. раздел android/ выше) и
+проверить, что SonicVPN-*.apk появился в Releases — иначе ссылки на help.html 404;
+(1) после деплоя VPS — проверить 3x-ui-ветку вживую (add/update/delClient, shape API);
+(2) v2 из PLAN.md: вывод реферального баланса, автопродление, 2-й узел, YouTube-узел, Smart TV.
 
 ## 11. Постоянные ограничения владельца (нельзя нарушать)
 

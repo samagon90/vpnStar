@@ -94,7 +94,7 @@ export function startBot() {
     const ref = ctx.message?.text?.split(/\s+/)[1] || '';
     const { user, created } = await ensureAccount(ctx.from, ref);
     const hello = created
-      ? `✦ Добро пожаловать в Sonic VPN, ${ctx.from.first_name}!\n\nВаш аккаунт создан и синхронизирован с Telegram.\n🎁 Вам начислено ${TRIAL_DAYS} дней бесплатного доступа — карта и подтверждение почты/номера не нужны.\n\n${created && user.referrer_id ? '🤝 Включён реферальный код: приглашавший получает 20% от ваших оплат.\n\n' : ''}`
+      ? `✦ Добро пожаловать в Sonic VPN, ${ctx.from.first_name}!\n\nВаш аккаунт создан и синхронизирован с Telegram.\n🎁 Вам начислено ${TRIAL_DAYS} дней бесплатного доступа — карта и подтверждение почты/номера не нужны.\n\n📲 Подключение за 2 минуты: Android — наше приложение «Sonic VPN», iPhone — Streisand (App Store).\nПошаговая инструкция: ${cfg.base_url}/help.html\n\n${created && user.referrer_id ? '🤝 Включён реферальный код: приглашавший получает 20% от ваших оплат.\n\n' : ''}`
       : `✦ С возвращением, ${ctx.from.first_name}! Аккаунт синхронизирован с Telegram.\n`;
     await ctx.reply(hello, { reply_markup: menu });
   });
@@ -123,6 +123,9 @@ export function startBot() {
 • СБП QR + карты РФ
 • ${DEVICES_BASE} устройства в подписке (+1 за ${money(DEVICE_PACK_PRICE_CENTS)}, до 10)
 • ${REFERRAL_PERCENT}% от оплат друзей — вам
+
+📲 Подключение за 2 минуты: Android — наше приложение «Sonic VPN», iPhone — Streisand (App Store).
+Пошаговая инструкция: ${cfg.base_url}/help.html
 
 Меню:`,
       { reply_markup: menu }
