@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Кабинет — Sonic VPN</title>
-<link rel="icon" type="image/png" href="/img/logo.png">
-<link rel="stylesheet" href="/css/site.css">
+<link rel="icon" type="image/png" href="img/logo.png">
+<link rel="stylesheet" href="css/site.css">
 <style>
   .dev-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--card-b)}
   .dev-item:last-child{border-bottom:0}
@@ -21,11 +21,11 @@
 
 <header>
   <div class="wrap nav">
-    <a class="logo" href="/"><img src="/img/logo.png" alt="Sonic VPN">Sonic VPN</a>
+    <a class="logo" href="index.html"><img src="img/logo.png" alt="Sonic VPN">Sonic VPN</a>
     <nav>
       <ul>
-        <li><a href="/#pricing">Тарифы</a></li>
-        <li><a href="/#faq">FAQ</a></li>
+        <li><a href="index.html#pricing">Тарифы</a></li>
+        <li><a href="index.html#faq">FAQ</a></li>
         <li><a href="https://t.me/sonicvpn_bot" target="_blank">Бот и поддержка</a></li>
       </ul>
     </nav>
@@ -42,7 +42,7 @@
     <!-- ПОДПИСКА -->
     <div class="panel">
       <h3><span class="l">📶 Подписка</span>
-        <a class="btn btn-primary btn-sm" href="/checkout.html" id="renew-btn">Продлить / купить</a>
+        <a class="btn btn-primary btn-sm" href="checkout.html" id="renew-btn">Продлить / купить</a>
       </h3>
       <div class="kv" id="sub-kv">
         <div>Статус <b id="sub-status" class="gr">…</b></div>
@@ -60,7 +60,7 @@
       <p class="hint" style="margin:-4px 0 12px">
         В подписке 2 устройства, докупить можно ещё до 8 (итого до 10) — <b style="color:var(--txt)">99 ₽ за устройство</b>.
         Заблокируйте устройство, если боитесь, что им пользуются без вас: оно просто перестанет подключаться.
-        Не знаете, как подключить? <a href="/help.html" target="_blank" style="color:var(--acc2)">Пошаговая инструкция</a>
+        Не знаете, как подключить? <a href="help.html" target="_blank" style="color:var(--acc2)">Пошаговая инструкция</a>
       </p>
       <div id="dev-list"></div>
 
@@ -131,13 +131,13 @@
   </div>
 </footer>
 
-<script src="/js/api.js"></script>
+<script src="js/api.js"></script>
 <script>
   let ME = null, SUB = null, DEVS = null, MOCK_ID = null;
   const $ = (id) => document.getElementById(id);
 
   async function load() {
-    try { ME = await API.get('/api/me'); } catch (e) { if (e.status === 401) location.href = '/auth.html'; return; }
+    try { ME = await API.get('/api/me'); } catch (e) { if (e.status === 401) location.href = 'auth.html'; return; }
     $('user-name').textContent = ME.username + (ME.tg_linked ? ' · TG' : '');
     try { SUB = await API.get('/api/subscription'); } catch { /* ignore */ }
     renderSub();
@@ -335,7 +335,7 @@
   $('logout').onclick = async (e) => {
     e.preventDefault();
     try { await API.post('/api/logout'); } catch { /* ignore */ }
-    location.href = '/auth.html';
+    location.href = 'auth.html';
   };
 
   load();
