@@ -30,12 +30,14 @@ public/                 сайт (статика): index (лендинг), auth,
                         в песочницу) — заменить файл = обновить бренд везде (шапки, favicon)
 android/                наше Android-приложение «Sonic VPN»: ребрендинг v2rayNG 2.2.6 (GPLv3).
                         branding/ (иконки+цвета, overlay), icon-source.png, resize-icons.js,
-                        workflow/sonicvpn-android.yml — GitHub-воркфлоу СБОРКИ APK.
-                        ⚠️ Воркфлоу НЕ АКТИВИРОВАН на GitHub: песочница не может пушить
-                        .github/workflows/ (нет workflows-прав у GitHub App). Владелец
-                        добавляет файл через GitHub Web (Add file → .github/workflows/
-                        sonicvpn-android.yml, содержимое из android/workflow/) — 2 минуты.
-                        Дальше: Actions → Run workflow → APK в Release sonicvpn-android;
+                        workflow/sonicvpn-android.yml (зеркало для пуша в песочнице).
+                        ⚠️ АКТИВНЫЙ воркфлоу — .github/workflows/main.yml (создан владельцем
+                        через GitHub Web 2026-09-06; имя файла не важно, в Actions =
+                        «Sonic VPN Android APK»). Песочница НЕ МОЖЕТ пушить create/update
+                        файлов .github/workflows/ (GitHub App без workflows-прав), но
+                        удалять — может. Ветка по умолчанию репозитория = arena/...
+                        (Settings → General → Default branch), иначе Actions пустой.
+                        Сборка: Actions → Run workflow → APK в Release sonicvpn-android;
                         стабильные ссылки releases/latest/download/SonicVPN-arm64-v8a.apk
   css/site.css          дизайн-система: Sonic-синий #1e6fff / #45b8ff
   js/api.js             API-хелпер (fetch, API_BASE='' — для split-хостинга на CF Pages)
@@ -163,8 +165,9 @@ devices/buy + confirm-mock (лимит 3) → PATCH enabled=false/true → DELET
 (AdminVPS/Timeweb, МИР/СБП, автоплатёж) → 2 ssh → 3 `deploy/vps-setup.sh` → 4 3x-ui inbound
 (VLESS Reality 443 + Hy2 8443) → 5 домен sonicvpn.ru + Cloudflare → 6 деплой `.env`+pm2 →
 7 BotFather (sonicvpn_bot, API URL) → 8 Groq-ключ → 9 ЮKassa боевая → 10 чек-лист запуска.
-**Агент:** (0) напомнить владельцу активировать workflow APK (см. раздел android/ выше) и
-проверить, что SonicVPN-*.apk появился в Releases — иначе ссылки на help.html 404;
+**Агент:** (0) workflow APK АКТИВЕН (.github/workflows/main.yml) — осталось дождаться
+первой сборки (владелец нажимает Actions → Run workflow) и проверить, что
+SonicVPN-*.apk появился в Releases — иначе ссылки на help.html 404;
 (1) после деплоя VPS — проверить 3x-ui-ветку вживую (add/update/delClient, shape API);
 (2) v2 из PLAN.md: вывод реферального баланса, автопродление, 2-й узел, YouTube-узел, Smart TV.
 

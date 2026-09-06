@@ -16,13 +16,12 @@
 Workflow лежит в **`android/workflow/sonicvpn-android.yml`** (не в `.github/workflows/` — песочница
 не имеет права пушить workflow-файлы, поэтому файл в репо «спит» в этой папке).
 
-**Одноразовая активация (2 минуты, делает владелец в браузере):**
-1. GitHub → репо vpnStar → вкладка **Add file** → **Create new file**
-2. В поле имени файла: `.github/workflows/sonicvpn-android.yml` (создастся путь сам)
-3. Вставить содержимое `android/workflow/sonicvpn-android.yml` → **Commit new file**
-   (свой git-аккаунт права на workflows имеет — пуш из песочницы их не имеет)
+**Статус: АКТИВИРОВАН ✅** (файл создан владельцем 2026-09-06: **`.github/workflows/main.yml`** —
+имя файла не важно, в Actions он отображается под именем из поля `name:` —
+**«Sonic VPN Android APK»**). Чтобы вкладка Actions показывала этот воркфлоу, ветка по умолчанию репозитория —
+ветка с проектом (`arena/01a05219-vpnstar`; меняется в Settings → General → Default branch).
 
-**Дальше — каждый сборка = 1 клик:**
+**Сборка — каждый раз 2 клика:**
 1. Вкладка **Actions** → workflow **«Sonic VPN Android APK»** → **Run workflow**
 2. ~15 минут → APK в **Releases** (тег `sonicvpn-android`):
    - `SonicVPN-arm64-v8a.apk` — основной (большинство телефонов)
