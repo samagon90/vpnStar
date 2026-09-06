@@ -1,0 +1,131 @@
+name: Sonic VPN Android APK
+
+# Сборка нашего Android-приложения «Sonic VPN» (ребрендинг v2rayNG 2.2.6, GPL v3).
+# Запуск: вкладка Actions → «Sonic VPN Android APK» → Run workflow.
+# Результат: APK-файлы в GitHub Release (тег sonicvpn-android) — ссылки стабильные:
+#   https://github.com/samagon90/vpnStar/releases/latest/download/SonicVPN-arm64-v8a.apk
+# Рецепт сборки — официальный CI v2rayNG (adapted). APK — debug-подпись (автоматическая,
+# без ключей): устанавливается на телефоны как «неизвестный источник».
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия в заметках релиза"
+        required: false
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Sonic VPN repo
+        uses: actions/checkout@v4
+
+      - name: Fetch v2rayNG 2.2.6 (pinned) + submodules
+        run: |
+          git clone --depth 1 --branch 2.2.6 \
+            --recurse-submodules --shallow-submodules \
+            https://github.com/2dust/v2rayNG.git /tmp/v2rayNG
+          # тег AndroidLibXrayLite (версия AAR xray)
+          git -C /tmp/v2rayNG/AndroidLibXrayLite fetch --tags --depth 1 || true
+
+      - name: Sonic VPN branding (иконки, цвета — overlay)
+        run: cp -r ${{ github.workspace }}/android/branding/app/src/. /tmp/v2rayNG/V2rayNG/app/src/
+
+      - name: Sonic VPN branding (имя, package, версия)
+        env:
+          V: /tmp/v2rayNG/V2rayNG
+        run: |
+          sed -i 's|<string name="app_name" translatable="false">v2rayNG</string>|<string name="app_name" translatable="false">Sonic VPN</string>|' "$V/app/src/main/res/values/strings.xml"
+          sed -i 's|applicationId = "com.v2ray.ang"|applicationId = "ru.sonicvpn.app"|' "$V/app/build.gradle.kts"
+          sed -i "s|versionName = \"2.2.6\"|versionName = \"${{ inputs.version }} (v2rayNG 2.2.6)\"|" "$V/app/build.gradle.kts"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+          cmdline-tools-version: '14742923'
+          packages: 'platforms;android-37.0 build-tools;37.0.0 platform-tools'
+
+      - name: Install NDK
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            --channel=0 \
+            --install "ndk;29.0.14206865"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
+          sed -i '10i\
+        
+            ndkVersion = "29.0.14206865"' /tmp/v2rayNG/V2rayNG/app/build.gradle.kts
+
+      - name: Build libhevtun
+        run: |
+          cd /tmp/v2rayNG
+          bash compile-hevtun.sh
+
+      - name: Copy libhevtun
+        run: cp -r /tmp/v2rayNG/libs /tmp/v2rayNG/V2rayNG/app/
+
+      - name: Fetch AndroidLibXrayLite tag
+        id: xray_tag
+        run: |
+          cd /tmp/v2rayNG/AndroidLibXrayLite
+          TAG=$(git describe --tags --abbrev=0)
+          echo "AndroidLibXrayLite tag: $TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Download libv2ray.aar
+        uses: robinraju/release-downloader@v1.13
+        with:
+          repository: '2dust/AndroidLibXrayLite'
+          tag: ${{ steps.xray_tag.outputs.tag }}
+          fileName: 'libv2ray.aar'
+          out-file-path: /tmp/v2rayNG/V2rayNG/app/libs/
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build APKs (debug-подпись)
+        run: |
+          cd /tmp/v2rayNG/V2rayNG
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod 755 gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Collect APKs (стабильные имена)
+        run: |
+          mkdir -p dist
+          APKROOT=/tmp/v2rayNG/V2rayNG/app/build/outputs/apk
+          find "$APKROOT" -path "*playstore*debug*" -name "*arm64-v8a*.apk"    -exec cp {} dist/SonicVPN-arm64-v8a.apk \;
+          find "$APKROOT" -path "*playstore*debug*" -name "*armeabi-v7a*.apk"  -exec cp {} dist/SonicVPN-armeabi-v7a.apk \;
+          find "$APKROOT" -path "*playstore*debug*" -name "*universal*.apk"    -exec cp {} dist/SonicVPN-universal.apk \;
+          ls -la dist/
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sonicvpn-android
+          name: "Sonic VPN Android v${{ inputs.version }}"
+          files: dist/*.apk
+          fail_on_unmatched_files: true
+          body: |
+            **Sonic VPN** — наше приложение для Android.
+            Ребрендинг [v2rayNG 2.2.6](https://github.com/2dust/v2rayNG) (GPL v3).
+
+            Какие файлы:
+            - **SonicVPN-arm64-v8a.apK** — для большинства телефонов (2018+) — брать этот
+            - **SonicVPN-armeabi-v7a.apk** — для старых устройств
+            - **SonicVPN-universal.apk** — все архитектуры (крупнее)
+
+            Установка: скачать → открыть файл → «Разрешить неизвестные источники» → установить.
+
+            Прямые ссылки (всегда актуальны):
+            - https://github.com/samagon90/vpnStar/releases/latest/download/SonicVPN-arm64-v8a.apk
+            - https://github.com/samagon90/vpnStar/releases/latest/download/SonicVPN-universal.apk
