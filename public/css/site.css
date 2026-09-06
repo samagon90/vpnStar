@@ -168,9 +168,11 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:34px 0;margin-top:40px
 @keyframes glowPulse{0%,100%{box-shadow:0 10px 40px rgba(30,111,255,.5)}50%{box-shadow:0 16px 64px rgba(69,184,255,.8)}}
 
 /* логотип крупнее и «живой» */
-.logo img{width:42px;height:42px;border-radius:11px;box-shadow:0 4px 22px rgba(30,111,255,.6);animation:glowPulse 3.5s ease-in-out infinite}
-.hero-logo{display:flex;justify-content:center;margin-bottom:30px;animation:fadeUp .7s cubic-bezier(.2,.7,.3,1) both}
-.hero-logo img{width:96px;height:96px;border-radius:24px;animation:floaty 5s ease-in-out infinite,glowPulse 3.5s ease-in-out infinite}
+.logo img{width:40px;height:40px;border-radius:11px;box-shadow:0 4px 22px rgba(30,111,255,.55);animation:glowPulse 3.5s ease-in-out infinite}
+/* фон-водяной знак: за контентом, еле заметный, медленно парит */
+.hero{position:relative}
+.hero-logo{position:absolute;top:110px;left:50%;transform:translateX(-50%);z-index:-1;margin:0;pointer-events:none}
+.hero-logo img{width:min(380px,64vw);height:min(380px,64vw);border-radius:72px;opacity:.07;animation:floaty 9s ease-in-out infinite}
 .hero .badge{animation:fadeUp .7s .08s cubic-bezier(.2,.7,.3,1) both}
 .hero h1{animation:fadeUp .7s .16s cubic-bezier(.2,.7,.3,1) both}
 .hero p.sub{animation:fadeUp .7s .24s cubic-bezier(.2,.7,.3,1) both}
@@ -203,14 +205,16 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:34px 0;margin-top:40px
   .kv{grid-template-columns:1fr}
   .app-card{flex-direction:column;text-align:center;padding:28px 22px}
   .app-btns{justify-content:center}
-  .hero-logo img{width:80px;height:80px}
+  .hero-logo{top:70px}
+  .hero-logo img{width:min(300px,70vw);height:min(300px,70vw);border-radius:60px}
 }
 @media(max-width:560px){
   .features{grid-template-columns:1fr}
   .hero{padding:56px 0 40px}
   .form-card{padding:24px}
-  .hero-logo img{width:68px;height:68px;border-radius:20px}
-  .app-logo img{width:88px;height:88px}
+  .hero-logo{top:48px}
+  .hero-logo img{width:min(230px,78vw);height:min(230px,78vw);border-radius:48px;opacity:.06}
+  .app-logo img{width:80px;height:80px}
 }
 /* уважение к настройкам пользователя: без анимаций при желании */
 @media (prefers-reduced-motion: reduce){
