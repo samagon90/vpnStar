@@ -59,7 +59,7 @@ jobs:
             --install "ndk;29.0.14206865"
           echo "NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
           sed -i '10i\
-        
+          \
             ndkVersion = "29.0.14206865"' /tmp/v2rayNG/V2rayNG/app/build.gradle.kts
 
       - name: Build libhevtun
