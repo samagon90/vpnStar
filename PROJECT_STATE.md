@@ -49,7 +49,7 @@ android/                наше Android-приложение «Sonic VPN»: р�
 server/                 бэкенд (npm start; package.json name=sonic-vpn-server)
   .env.example          шаблон всех переменных (с примерами Groq/OpenRouter/Gemini)
   src/index.js          Express: cookie-сессии, CORS (CORS_ORIGINS), статика, роутеры, запуск бота/cron
-  src/config.js         ВСЕ бизнес-констанТЫ: PLANS (199/499/1499), DEVICES_BASE=2,
+  src/config.js         ВСЕ бизнес-констанТЫ: PLANS (199/499/899), DEVICES_BASE=2,
                         DEVICE_PACK_PRICE_CENTS=9900, DEVICE_PACK_MAX=8, REFERRAL_PERCENT=20, TRIAL_DAYS=7
   src/db.js             схема SQLite + миграции (addColumn try/catch) + все запросы (объект q)
   src/util.js           money() (39,80 ₽), хеши, parseCookies, randomRefCode
@@ -112,7 +112,7 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
 
 | Правило | Значение |
 |---|---|
-| Тарифы | 19900 / 49900 / 149900 коп (1/3/12 мес), 5 устройств — НЕТ: 2 устройства в каждом |
+| Тарифы | 19900 / 49900 / 89900 коп (1/3/6 мес, ключи m1/m3/m6), 2 устройства в каждом |
 | Пробник | 7 дней, автоматически при регистрации, без карты |
 | Рефералка | 20% от (amount_cents + balance_used_cents) каждой paid-оплаты → balance_cents реферера |
 | Устройства | DEVICES_BASE=2; +1 за 9900 коп; DEVICE_PACK_MAX=8; слот = строка devices (в т.ч. заблокированная) |

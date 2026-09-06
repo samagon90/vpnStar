@@ -162,6 +162,38 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:34px 0;margin-top:40px
 .f-logo img{width:26px;height:26px;border-radius:7px}
 .disclaimer{margin-top:18px;font-size:.78rem;color:#5b6478;max-width:860px}
 
+/* ===== анимации и акценты ===== */
+@keyframes fadeUp{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes glowPulse{0%,100%{box-shadow:0 10px 40px rgba(30,111,255,.5)}50%{box-shadow:0 16px 64px rgba(69,184,255,.8)}}
+
+/* логотип крупнее и «живой» */
+.logo img{width:42px;height:42px;border-radius:11px;box-shadow:0 4px 22px rgba(30,111,255,.6);animation:glowPulse 3.5s ease-in-out infinite}
+.hero-logo{display:flex;justify-content:center;margin-bottom:30px;animation:fadeUp .7s cubic-bezier(.2,.7,.3,1) both}
+.hero-logo img{width:96px;height:96px;border-radius:24px;animation:floaty 5s ease-in-out infinite,glowPulse 3.5s ease-in-out infinite}
+.hero .badge{animation:fadeUp .7s .08s cubic-bezier(.2,.7,.3,1) both}
+.hero h1{animation:fadeUp .7s .16s cubic-bezier(.2,.7,.3,1) both}
+.hero p.sub{animation:fadeUp .7s .24s cubic-bezier(.2,.7,.3,1) both}
+.hero-cta{animation:fadeUp .7s .32s cubic-bezier(.2,.7,.3,1) both}
+.hero .stats{animation:fadeUp .7s .4s cubic-bezier(.2,.7,.3,1) both}
+
+/* появление при прокрутке */
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .6s cubic-bezier(.2,.7,.3,1),transform .6s cubic-bezier(.2,.7,.3,1),border-color .15s,box-shadow .15s}
+.reveal.in{opacity:1;transform:none}
+
+/* блик по кнопке */
+.btn-primary{position:relative;overflow:hidden}
+.btn-primary::after{content:"";position:absolute;top:0;left:-80%;width:50%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-20deg);transition:left .55s ease}
+.btn-primary:hover::after{left:135%}
+
+/* секция приложения */
+.app-card{display:flex;gap:32px;align-items:center;background:linear-gradient(135deg,rgba(30,111,255,.16),rgba(255,255,255,.03));border:1px solid rgba(30,111,255,.45);border-radius:22px;padding:36px;max-width:840px;margin:0 auto}
+.app-logo img{width:112px;height:112px;border-radius:26px;box-shadow:0 12px 46px rgba(30,111,255,.55);animation:floaty 5s ease-in-out infinite}
+.app-info h3{font-size:1.35rem;margin-bottom:8px}
+.app-info>p{color:var(--muted);margin-bottom:18px}
+.app-btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.app-note{color:var(--muted);font-size:.86rem}
+
 @media(max-width:900px){
   .pricing{grid-template-columns:1fr;max-width:420px;margin:0 auto}
   .features{grid-template-columns:repeat(2,1fr)}
@@ -169,9 +201,19 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:34px 0;margin-top:40px
   .steps,.tech{grid-template-columns:1fr}
   nav ul{display:none}
   .kv{grid-template-columns:1fr}
+  .app-card{flex-direction:column;text-align:center;padding:28px 22px}
+  .app-btns{justify-content:center}
+  .hero-logo img{width:80px;height:80px}
 }
 @media(max-width:560px){
   .features{grid-template-columns:1fr}
   .hero{padding:56px 0 40px}
   .form-card{padding:24px}
+  .hero-logo img{width:68px;height:68px;border-radius:20px}
+  .app-logo img{width:88px;height:88px}
+}
+/* уважение к настройкам пользователя: без анимаций при желании */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .reveal{opacity:1;transform:none}
 }
