@@ -161,22 +161,24 @@ DE-сервер (VPN):   IP: 185.14.23.107      пароль root: ********
 **Зачем:** на каждом сервере свой набор программ. Из нашего репозитория есть два готовых скрипта — их надо скопировать и запустить на соответствующих серверах.
 
 **3.1. На РУССКОМ сервере** (вы в его SSH, окно №1 из шага 2):
-1. На компьютере открыть: **https://github.com/samagon90/vpnStar/blob/arena/01a05219-vpnstar/deploy/vps-setup-ru.sh**
-2. Кнопка **«Copy raw file»** (справа сверху) — текст скрипта в буфере.
-3. На сервере: `nano /root/vps-setup.sh` → Enter → вставить (на Windows — **правая кнопка мыши** в окне PowerShell) → `Ctrl+O` → Enter → `Ctrl+X`.
-4. Запустить:
+1. Две команды (копируете целиком по строке):
    ```
-   bash /root/vps-setup.sh sonicvpn.ru
+   curl -o /root/setup.sh https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/deploy/vps-setup-ru.sh
    ```
-5. Ждём **5–10 минут**. Ставится: Caddy (HTTPS-сертификаты), Node.js 22, pm2, firewall, защита SSH, swap.
+   → скачает скрипт установки прямо на сервер (пару секунд, молча).
+   ```
+   bash /root/setup.sh sonicvpn.ru
+   ```
+2. Ждём **5–10 минут**. Ставится: Caddy (HTTPS-сертификаты), Node.js 22, pm2, firewall, защита SSH, swap.
 
 **3.2. На НЕМЕЦКОМ сервере** (окно №2, его SSH):
-1. Скопировать: **https://github.com/samagon90/vpnStar/blob/arena/01a05219-vpnstar/deploy/vps-setup-de.sh** → «Copy raw file» → на сервере так же сохранить в `/root/vps-setup.sh` (`nano` → вставить → `Ctrl+O` → Enter → `Ctrl+X`).
-2. Запустить, подставив **IP российского сервера** (тогда панель 3x-ui будет видна только с нашего RU-сервера — никто чужой не подберёт):
+1. То же, но свой скрипт + в конце **IP российского сервера** (тогда панель 3x-ui будет видна только с нашего RU-сервера — никто чужой не подберёт):
    ```
-   bash /root/vps-setup.sh 92.118.1.1
+   curl -o /root/setup.sh https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/deploy/vps-setup-de.sh
    ```
-   (92.118.1.1 — ваш IP RU-сервера из шага 1!)
+   ```
+   bash /root/setup.sh IP_ВАШЕГО_RU_СЕРВЕРА
+   ```
 3. Ждём **5–10 минут**. Ставится: 3x-ui (VPN-панель), firewall, защита SSH, swap.
    При установке 3x-ui установщик может задавать вопросы (порт, логин, пароль) — на каждый просто жмите **Enter** (подойдут значения по умолчанию). В конце он **напечатает адрес панели, логин и пароль** (строка «X-UI installation was successful, Panel: http://IP:порт, username: ..., password: ...») — в потоке строк. Не успели поймать → выполните на DE-сервере:
    ```
