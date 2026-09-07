@@ -52,8 +52,9 @@ api.$DOMAIN {
 EOF
 if ! command -v caddy &>/dev/null; then
   apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  echo "deb [signed-by=/usr/share/keyrings/caddy-stable-archive-keyring.gpg] https://dl.cloudsmith.io/public/caddy/stable/deb/amd64 stable main" > /etc/apt/sources.list.d/caddy-stable.list
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL 'https://dl.caddyserver.com/api/deb/stable/repo.key' | gpg --dearmor -o /etc/apt/keyrings/caddy-server-archive-keyring.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/caddy-server-archive-keyring.gpg] https://dl.caddyserver.com/api/deb/stable caddy stable" > /etc/apt/sources.list.d/caddy-stable.list
   apt-get update -y && apt-get install -y caddy
 fi
 systemctl enable caddy && (systemctl restart caddy || true)
