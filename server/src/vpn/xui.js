@@ -14,13 +14,29 @@ import { cfg } from '../config.js';
 // приложения — Groq и т.п. — продолжают проверять сертификаты).
 const xuiAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
+// Некоторые сборки 3x-ui отклоняют запросы без «браузерных» заголовков (403)
+const PANEL_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+let panelOrigin = ''; // scheme://host:port — для Origin
+let panelRef = ''; // полная база — для Referer
+try {
+  const u = new URL(cfg.xui_base);
+  panelOrigin = u.origin;
+  panelRef = cfg.xui_base;
+} catch { /* пусто */ }
+
 class Xui {
   cookie = '';
 
   async login() {
     const res = await fetch(`${cfg.xui_base}/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': PANEL_UA,
+        Origin: panelOrigin,
+        Referer: panelRef,
+      },
       body: JSON.stringify({ username: cfg.xui_user, password: cfg.xui_password }),
       dispatcher: xuiAgent,
     });
@@ -37,6 +53,9 @@ class Xui {
       method: body ? 'POST' : 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': PANEL_UA,
+        Origin: panelOrigin,
+        Referer: panelRef,
         Cookie: this.cookie,
         'x-client-token': this.cookie.split('=')[1] || '',
       },

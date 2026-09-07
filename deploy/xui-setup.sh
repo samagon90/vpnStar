@@ -30,9 +30,13 @@ URL="$SCHEME://127.0.0.1:$PORT$BASE_NOSLASH"
 echo "Панель: $URL"
 
 c "Вход в панель по API"
+UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+ORIGIN=$(printf '%s' "$URL" | sed -E 's#(https?://[^/]+).*#\1#')
 JAR=/tmp/.xui-jar
 rm -f "$JAR"
-LOGIN_RESP=$(curl -ks -c "$JAR" -X POST "$URL/login" -H 'Content-Type: application/json' \
+LOGIN_RESP=$(curl -ks -c "$JAR" -X POST "$URL/login" \
+  -H 'Content-Type: application/json' -H "User-Agent: $UA" \
+  -H "Origin: $ORIGIN" -H "Referer: $URL/" \
   -d "{\"username\":\"$U\",\"password\":\"$P\"}")
 printf '%s' "$LOGIN_RESP" | grep -q '"success":true' || {
   echo "❌ Вход не удался: $LOGIN_RESP"
