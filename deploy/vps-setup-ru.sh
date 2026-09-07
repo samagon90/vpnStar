@@ -17,6 +17,8 @@ c() { printf "\n\033[1;34m==> %s\033[0m\n" "$1"; }
 
 c "Системные пакеты"
 export DEBIAN_FRONTEND=noninteractive
+# чистим мёртвый cloudsmith-репозиторий Caddy от предыдущих версий скрипта
+grep -rl cloudsmith /etc/apt/sources.list.d/ 2>/dev/null | xargs -r rm -f
 apt-get update -y
 apt-get install -y curl ca-certificates ufw fail2ban git unzip
 mkdir -p /etc/caddy.d
