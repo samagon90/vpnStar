@@ -6,7 +6,13 @@
  * Конфигурация inbound (VLESS+Reality) создаётся при первоначальной настройке VPS
  * (docs/PLAN.md, этап 1); здесь добавляем/удаляем clients в готовом inbound.
  */
+import { Agent } from 'undici';
 import { cfg } from '../config.js';
+
+// Панель 3x-ui работает по self-signed SSL. Отключаем проверку сертификата ТОЛЬКО
+// для соединения с нашей же панелью (отдельный dispatcher; остальные HTTPS-запросы
+// приложения — Groq и т.п. — продолжают проверять сертификаты).
+const xuiAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 class Xui {
   cookie = '';
@@ -16,6 +22,7 @@ class Xui {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: cfg.xui_user, password: cfg.xui_password }),
+      dispatcher: xuiAgent,
     });
     const setc = res.headers.get('set-cookie') || '';
     const m = setc.match(/^(x-ui-[a-z]+-auth|auth)=([^;]+)/i);
@@ -34,6 +41,7 @@ class Xui {
         'x-client-token': this.cookie.split('=')[1] || '',
       },
       body: body ? JSON.stringify(body) : undefined,
+      dispatcher: xuiAgent,
     });
     if (res.status === 401) { this.cookie = ''; return this.api(path, body); }
     const j = await res.json().catch(() => ({}));

@@ -16,7 +16,8 @@
     "express": "^4.21.2",
     "grammy": "^1.30.0",
     "nodemailer": "^6.9.16",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "undici": "^8.10.2"
   },
   "description": "Sonic VPN: бэкенд MVP (Node.js 22, Express + node:sqlite, Grammy)"
 }
