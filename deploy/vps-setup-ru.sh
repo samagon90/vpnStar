@@ -40,16 +40,19 @@ mkdir -p /etc/caddy /etc/caddy.d
 [ -f /etc/caddy/Caddyfile ] && [ ! -f /etc/caddy/Caddyfile.orig ] && cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.orig
 cat > /etc/caddy/Caddyfile <<EOF
 $DOMAIN {
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy 127.0.0.1:3000
     encode gzip
 }
 api.$DOMAIN {
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy 127.0.0.1:3000
     encode gzip
 }
+:80 {
+    # прямой доступ по IP (пока домен не прописан)
+    reverse_proxy 127.0.0.1:3000
+}
 :8080 {
-    # прямой доступ без домена (пока DNS не прописан)
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy 127.0.0.1:3000
 }
 EOF
 if ! command -v caddy &>/dev/null; then
