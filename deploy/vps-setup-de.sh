@@ -22,10 +22,14 @@ apt-get install -y curl ca-certificates ufw fail2ban git unzip
 
 c "Swap (если RAM < 4 GB)"
 free -m | awk 'NR==2{if ($2 < 4000) print "yes"}' | grep -q yes && {
-  fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
-  chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  if [ ! -f /swapfile ]; then
+    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+    chmod 600 /swapfile && mkswap /swapfile
+    echo "swapfile создан: 2 GB"
+  fi
+  swapon --show 2>/dev/null | grep -q /swapfile || swapon /swapfile
   grep -q swapfile /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
-  echo "swap добавлен: 2 GB"
+  echo "swap активен"
 } || echo "swap не нужен"
 
 c "Установка 3x-ui (панель VLESS Reality / Hysteria2)"
