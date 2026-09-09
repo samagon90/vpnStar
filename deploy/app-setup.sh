@@ -18,6 +18,9 @@ U="${1:-}"; P="${2:-}"; PUBKEY="${3:-}"
 XUI_BASE="${4:-https://185.125.102.135:20461/3dtIfnbTYAw5E0rNtB}"
 DOMAIN="sonicvpn.ru"
 DE_IP="${XUI_BASE#*://}"; DE_IP="${DE_IP%%:*}"
+RU_IP=$(curl -s --max-time 6 https://ifconfig.me 2>/dev/null || true)
+case "$RU_IP" in ''|*[!0-9.]*) RU_IP="87.249.49.204";; esac
+[ -n "$RU_IP" ] || RU_IP="87.249.49.204"
 
 [ -n "$U" ] && [ -n "$P" ] && [ -n "$PUBKEY" ] || {
   echo "Запуск: bash app-setup.sh ЛОГИН_ПАНЕЛИ ПАРОЛЬ_ПАНЕЛИ PUBLIC_KEY [XUI_BASE]"; exit 1; }
@@ -64,8 +67,6 @@ else
   cp .env.example .env
   SECRET=$(openssl rand -hex 32)
   ADMIN=$(openssl rand -hex 16)
-  RU_IP=$(curl -s --max-time 6 https://ifconfig.me 2>/dev/null || true)
-  case "$RU_IP" in ''|*[!0-9.]*) RU_IP="87.249.49.204";; esac
   sed -i \
     -e "s|^BASE_URL=.*|BASE_URL=http://$RU_IP|" \
     -e "s|^SECRET_KEY=.*|SECRET_KEY=$SECRET|" \
@@ -95,7 +96,7 @@ fi
 c "Запуск (pm2) + автозапуск при перезагрузке"
 pm2 delete sonicvpn 2>/dev/null || true
 pm2 start src/index.js --name sonicvpn
-pm2 startup systemd -u root --hp /root 2>/dev/null | tail -n1 | bash || true
+pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 pm2 save
 
 c "Самопроверка"
@@ -110,7 +111,7 @@ if printf '%s' "$REG" | grep -q '"error"'; then
   echo "❌ Самопроверка не удалась: аккаунт не создан."
   echo "   Часто это значит: сайт не может попасть на немецкую 3x-ui."
   echo "   Проверьте: 1) скрипт xui-setup.sh на DE завершился «ГОТОВО ✅»,"
-  echo "              2) на DE выполнено: ufw allow from $(curl -s --max-time 6 https://ifconfig.me 2>/dev/null || echo 87.249.49.204) to any port $(printf '%s' "$XUI_BASE" | sed -E 's#https?://[^/:]+:([0-9]+).*#\1#') proto tcp"
+  echo "              2) на DE выполнено: ufw allow from $RU_IP to any port $(printf '%s' "$XUI_BASE" | sed -E 's#https?://[^/:]+:([0-9]+).*#\1#') proto tcp"
   exit 1
 fi
 echo "Самопроверка: тестовый аккаунт создан, ключ сгенерирован — вся цепочка работает ✅"
