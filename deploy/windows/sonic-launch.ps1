@@ -32,10 +32,11 @@ if (-not (Get-Module -Name Posh-SSH -ErrorAction SilentlyContinue)) {
   Write-Host ''
   Write-Host 'First run: installing Posh-SSH module (~1 minute) ...'
   try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Install-PackageProvider -Name NuGet -Force -Confirm:$false -Scope CurrentUser -ErrorAction SilentlyContinue | Out-Null
-    if (-not (Get-PSRepository -ListAvailable | Where-Object { $_.Name -eq 'PSGallery' })) { Register-PSRepository -DefaultInstallation }
-    Install-Module -Name Posh-SSH -Force -Scope CurrentUser -AllowClobber -Confirm:$false
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    try { Install-PackageProvider -Name NuGet -Force | Out-Null } catch { }
+    try { Set-PSRepository -Name PSGallery -InstallationPolicy Trusted } catch { }
+    try { Register-PSRepository -DefaultInstallation } catch { }
+    Install-Module -Name Posh-SSH -Force -Scope CurrentUser
     Import-Module Posh-SSH
   } catch {
     Write-Host 'ERROR: could not install Posh-SSH module.' -ForegroundColor Red
