@@ -71,12 +71,15 @@ function Invoke-Server([string]$ip, [string]$pass, [string]$cmd, [string]$logFil
   return ($out -join "`n")
 }
 
-$rawBase = 'https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/deploy/'
+# Скрипты приходят через git (НЕ через raw.githubusercontent):
+# Cloudflare кэширует raw-файлы до 10 минут, и сервер мог выполнять
+# устаревшую версию. git fetch всегда даёт актуальную HEAD-версию ветки.
+$repo = 'if [ -d /tmp/sonic-repo ]; then git -C /tmp/sonic-repo fetch -q origin arena/01a05219-vpnstar && git -C /tmp/sonic-repo reset --hard -q origin/arena/01a05219-vpnstar; else git clone -q -b arena/01a05219-vpnstar https://github.com/samagon90/vpnStar.git /tmp/sonic-repo; fi'
 
 # --- [1/2] Germany: 3x-ui ---
 Write-Host ''
 Write-Host '[1/2] German server: setting up 3x-ui ...'
-$deCmd = "curl -fsSL -o /root/xui-setup.sh ${rawBase}xui-setup.sh && bash /root/xui-setup.sh $xuiUser $xuiPass $ruIp"
+$deCmd = "$repo && bash /tmp/sonic-repo/deploy/xui-setup.sh $xuiUser $xuiPass $ruIp"
 $deOut = Invoke-Server $deIp $dePass $deCmd "$env:TEMP\sonic-de.log"
 if ($null -eq $deOut) { exit 1 }
 if ($deOut -notmatch '__SONIC_XUI_OK__') {
@@ -96,7 +99,7 @@ $pubKey = $matches[1]
 # --- [2/2] Russia: site ---
 Write-Host ''
 Write-Host '[2/2] Russian server: installing the site (code, database, admin) ...'
-$ruCmd = "curl -fsSL -o /root/app-setup.sh ${rawBase}app-setup.sh && bash /root/app-setup.sh $xuiUser $xuiPass $pubKey"
+$ruCmd = "$repo && bash /tmp/sonic-repo/deploy/app-setup.sh $xuiUser $xuiPass $pubKey"
 $ruOut = Invoke-Server $ruIp $ruPass $ruCmd "$env:TEMP\sonic-ru.log"
 if ($null -eq $ruOut) { exit 1 }
 if ($ruOut -notmatch '__SONIC_SITE_OK__') {
