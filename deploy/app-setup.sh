@@ -117,6 +117,10 @@ fi
 echo "Самопроверка: тестовый аккаунт создан, ключ сгенерирован — вся цепочка работает ✅"
 
 echo
+ADMIN="${ADMIN:-}"
+if [ -z "$ADMIN" ] && [ -f /opt/sonicvpn/server/.env ]; then
+  ADMIN=$(grep '^ADMIN_TOKEN=' /opt/sonicvpn/server/.env 2>/dev/null | cut -d= -f2 || true)
+fi
 echo "============================================================"
 echo "  САЙТ ЖИВ ✅"
 echo
