@@ -1,138 +1,156 @@
 /**
- * Клиент панели 3x-ui (API). Используется, когда в .env задан XUI_BASE
- * (панель должна быть развёрнута на VPS: Oracle Cloud, см. docs/PLAN.md).
+ * Клиент панели 3x-ui (v3 API). Используется, когда в .env задан XUI_BASE.
  *
- * Ожидаемый ответ API — JSON {success, msg, obj}. Авторизация: POST /login → cookie.
- * Конфигурация inbound (VLESS+Reality) создаётся при первоначальной настройке VPS
- * (docs/PLAN.md, этап 1); здесь добавляем/удаляем clients в готовом inbound.
+ * Особенности v3 (проверено по исходникам MHSanaei/3x-ui):
+ *  - вход: GET {base}/csrf-token (создаёт сессию + токен) →
+ *    POST {base}/login с cookie сессии и заголовком X-CSRF-Token;
+ *  - ВСЕ POST к /panel/api/* тоже требуют X-CSRF-Token (session-сессия);
+ *  - клиенты живут в отдельной группе: /panel/api/clients/add,
+ *    /panel/api/clients/get/:email, /panel/api/clients/update/:email,
+ *    /panel/api/clients/del/:email (старых /inbound/addClient больше нет).
+ *
+ * Ответы — JSON {success, msg, obj}. Панель на self-signed/LE SSL:
+ * отдельный undici-agent с rejectUnauthorized:false (только для панели).
  */
 import { Agent } from 'undici';
+import crypto from 'node:crypto';
 import { cfg } from '../config.js';
 
-// Панель 3x-ui работает по self-signed SSL. Отключаем проверку сертификата ТОЛЬКО
-// для соединения с нашей же панелью (отдельный dispatcher; остальные HTTPS-запросы
-// приложения — Groq и т.п. — продолжают проверять сертификаты).
 const xuiAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
-// Некоторые сборки 3x-ui отклоняют запросы без «браузерных» заголовков (403)
 const PANEL_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
-let panelOrigin = ''; // scheme://host:port — для Origin
-let panelRef = ''; // полная база — для Referer
+let panelOrigin = '';
 try {
-  const u = new URL(cfg.xui_base);
-  panelOrigin = u.origin;
-  panelRef = cfg.xui_base;
+  panelOrigin = new URL(cfg.xui_base).origin;
 } catch { /* пусто */ }
 
+function collectCookies(res, store) {
+  const sc = res.headers.get('set-cookie') || '';
+  for (const part of sc.split(/,(?=\s*\w+=)/)) {
+    const nv = part.split(';')[0].trim();
+    if (!nv || !nv.includes('=')) continue;
+    store.set(nv.split('=')[0], nv);
+  }
+}
+
 class Xui {
-  cookie = '';
+  cookies = new Map();
+  csrf = '';
+
+  cookieHeader() {
+    return [...this.cookies.values()].join('; ');
+  }
 
   async login() {
+    this.cookies = new Map();
+    this.csrf = '';
+    // 1) CSRF-токен (заодно создаёт сессию и кладёт cookie)
+    const t = await fetch(`${cfg.xui_base}/csrf-token`, {
+      headers: { 'User-Agent': PANEL_UA },
+      dispatcher: xuiAgent,
+    });
+    collectCookies(t, this.cookies);
+    const tj = await t.json().catch(() => ({}));
+    if (!tj.obj) throw new Error(`3x-ui: csrf-token не получен (${t.status})`);
+    this.csrf = String(tj.obj);
+    // 2) вход
     const res = await fetch(`${cfg.xui_base}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': PANEL_UA,
         Origin: panelOrigin,
-        Referer: panelRef,
+        Cookie: this.cookieHeader(),
+        'X-CSRF-Token': this.csrf,
       },
       body: JSON.stringify({ username: cfg.xui_user, password: cfg.xui_password }),
       dispatcher: xuiAgent,
     });
-    const setc = res.headers.get('set-cookie') || '';
-    const m = setc.match(/^(x-ui-[a-z]+-auth|auth)=([^;]+)/i);
-    if (m) this.cookie = `${m[1]}=${m[2]}`;
+    collectCookies(res, this.cookies);
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.success === false) throw new Error(`3x-ui login failed: ${j.msg || res.status}`);
   }
 
-  async api(path, body) {
-    if (!this.cookie) await this.login();
+  async api(path, body, retry = true) {
+    if (this.cookies.size === 0) await this.login();
     const res = await fetch(`${cfg.xui_base}${path}`, {
       method: body ? 'POST' : 'GET',
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': PANEL_UA,
         Origin: panelOrigin,
-        Referer: panelRef,
-        Cookie: this.cookie,
-        'x-client-token': this.cookie.split('=')[1] || '',
+        Cookie: this.cookieHeader(),
+        ...(body ? { 'X-CSRF-Token': this.csrf } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       dispatcher: xuiAgent,
     });
-    if (res.status === 401) { this.cookie = ''; return this.api(path, body); }
+    collectCookies(res, this.cookies);
+    // сессия истекла → один повтор после повторного входа
+    if ((res.status === 401 || res.status === 403) && retry) {
+      await this.login();
+      return this.api(path, body, false);
+    }
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.success === false) throw new Error(`3x-ui ${path}: ${j.msg || res.status}`);
     return j.obj;
   }
 
   async inboundId() {
-    // первый VLESS inbound с Reality (см. подготовка VPS)
-    const list = await this.api('/panel/api/inbound/list');
-    for (const row of list.rows || []) {
-      const it = row.flow || row.settings;
-      if (String(it).includes('vless')) {
-        const net = row.settings ? JSON.parse(row.settings) : null;
-        if (net && net.clients) return { id: row.id, net };
-      }
-      if (row.remark && /vless/i.test(row.remark)) return { id: row.id, net: null };
-    }
-    throw new Error('3x-ui: VLESS inbound не найден (создайте inbound при подготовке VPS)');
+    // первый VLESS inbound с Reality (создаётся deploy/xui-setup.sh)
+    const list = await this.api('/panel/api/inbounds/list');
+    const rows = list?.rows || [];
+    const row =
+      rows.find((r) => r.protocol === 'vless' && String(r.streamSettings || '').includes('realitySettings')) ||
+      rows.find((r) => r.protocol === 'vless');
+    if (!row) throw new Error('3x-ui: VLESS inbound не найден (запустите deploy/xui-setup.sh на VPN-сервере)');
+    return { id: row.id, port: row.port, row };
+  }
+
+  async clientByEmail(email) {
+    return this.api(`/panel/api/clients/get/${encodeURIComponent(email)}`);
   }
 
   /**
    * Один клиент 3x-ui = ОДНО устройство (limitIp: 1).
-   * Блокировка устройства = enable: false у его клиента.
+   * email = наш стабильный ref; id = настоящий UUID (xray требует).
    */
   async addVlessClient(user, device) {
     const { id } = await this.inboundId();
     const ref = `vs-u${user.id}-d${device.id}-${Date.now().toString(36)}`;
-    // email-поле клиента у 3x-ui — уникальный идентификатор
-    await this.api('/panel/api/inbound/addClient', {
-      inboundId: id,
-      settings: JSON.stringify({
-        clients: [
-          {
-            id: ref,
-            email: ref,
-            flow: 'xtls-rprx-vision',
-            limitIp: 1,
-            totalGB: 0,
-            enable: true,
-          },
-        ],
-      }),
+    await this.api('/panel/api/clients/add', {
+      client: {
+        id: crypto.randomUUID(),
+        security: '',
+        email: ref,
+        flow: 'xtls-rprx-vision',
+        limitIp: 1,
+        totalGB: 0,
+        enable: true,
+        comment: `Sonic u${user.id} d${device.id}`,
+      },
+      inboundIds: [id],
     });
     return ref;
   }
 
   /** Включить/выключить клиента по ref (блокировка устройства пользователем). */
   async setClientEnabled(ref, enable) {
-    const { id, net } = await this.inboundId();
-    const settings = net || JSON.parse((await this.api(`/panel/api/inbound/list`)).rows.find((r) => r.id === id)?.settings || '{}');
-    const c = (settings.clients || []).find((x) => x.id === ref || x.email === ref);
+    const c = await this.clientByEmail(ref);
     if (!c) throw new Error(`client ${ref} not found in 3x-ui`);
     c.enable = !!enable;
-    await this.api('/panel/api/inbound/updateClient', { inboundId: id, settings: JSON.stringify(settings) });
+    await this.api(`/panel/api/clients/update/${encodeURIComponent(ref)}`, c);
   }
 
   /** Удалить клиента (свободит слот устройства). */
   async delClient(ref) {
-    const { id } = await this.inboundId();
-    await this.api('/panel/api/inbound/delClient', {
-      inboundId: id,
-      settings: JSON.stringify({ clients: [{ id: ref, email: ref }] }),
-    });
+    await this.api(`/panel/api/clients/del/${encodeURIComponent(ref)}`);
   }
 
   async profileFor(device) {
     if (!device || !device.ref_id) throw new Error('no device ref');
-    const { id, net } = await this.inboundId();
-    const list = net ? net.clients : (await this.api('/panel/api/inbound/list')).rows.find((r) => r.id === id)?.settings;
-    const clients = list && !Array.isArray(list) && list.clients ? list.clients : (typeof list === 'string' ? JSON.parse(list).clients : list);
-    const c = (clients || []).find((x) => x.id === device.ref_id || x.email === device.ref_id);
+    const c = await this.clientByEmail(device.ref_id);
     if (!c) throw new Error('client not found in 3x-ui');
     const host = process.env.XUI_HOST || 'vpn.example.com';
     const port = process.env.XUI_PORT || 443;
