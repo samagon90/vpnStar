@@ -100,7 +100,7 @@ class Xui {
   async inboundId() {
     // первый VLESS inbound с Reality (создаётся deploy/xui-setup.sh)
     const list = await this.api('/panel/api/inbounds/list');
-    const rows = list?.rows || [];
+    const rows = Array.isArray(list) ? list : (list?.rows || []);
     const row =
       rows.find((r) => r.protocol === 'vless' && String(r.streamSettings || '').includes('realitySettings')) ||
       rows.find((r) => r.protocol === 'vless');

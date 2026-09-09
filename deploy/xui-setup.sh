@@ -66,11 +66,12 @@ PUB=""; PRIV=""
 
 c "Ищу существующий VLESS+Reality inbound"
 LIST_JSON=$(api GET /panel/api/inbounds/list)
-INB_ID=$(printf '%s' "$LIST_JSON" | jq -r '[.obj.rows[]? | select(.protocol=="vless" and ((.streamSettings|tostring) | contains("realitySettings")))] | .[0].id // empty')
+ROWS_NORMALIZE='(.obj | if type=="array" then . elif type=="object" then (.rows // []) else [] end)'
+INB_ID=$(printf '%s' "$LIST_JSON" | jq -r "${ROWS_NORMALIZE} | [.[]? | select(.protocol==\"vless\" and ((.streamSettings|tostring) | contains(\"realitySettings\")))] | .[0].id // empty")
 
 if [ -n "$INB_ID" ]; then
   echo "Inbound уже есть (id=$INB_ID) — переиспользую"
-  PRIV=$(printf '%s' "$LIST_JSON" | jq -r --argjson id "$INB_ID" '.obj.rows[]? | select(.id==$id) | (.streamSettings|fromjson).realitySettings.privateKey // empty')
+  PRIV=$(printf '%s' "$LIST_JSON" | jq -r --argjson id "$INB_ID" "${ROWS_NORMALIZE} | [.[]? | select(.id==\$id)] | .[0] | (.streamSettings|fromjson).realitySettings.privateKey // empty")
 else
   c "Создаю inbound VLESS+Reality (порт 443)"
   KEYS=$("$XRAY_BIN" x25519)
@@ -80,7 +81,7 @@ else
   STREAM_JSON=$(jq -cn --arg priv "$PRIV" '{network:"tcp",security:"reality",realitySettings:{show:false,xver:0,dest:"www.microsoft.com:443",serverNames:["www.microsoft.com"],privateKey:$priv,minClientVer:"",maxClientVer:"",shortIds:[],spiderX:"/"}}')
   ADD_JSON=$(jq -cn --arg stream "$STREAM_JSON" '{remark:"Sonic Основной",listen:"",port:443,protocol:"vless",settings:"{\"clients\":[],\"decryption\":\"none\"}",streamSettings:$stream,tag:"sonic-vless-443",sniffing:"{\"enabled\":true,\"destOverride\":[\"http\",\"tls\",\"quic\"]}",enable:true}')
   ADD_RESP=$(api POST /panel/api/inbounds/add "$ADD_JSON")
-  INB_ID=$(printf '%s' "$ADD_RESP" | jq -r '.obj.id // empty')
+  INB_ID=$(printf '%s' "$ADD_RESP" | jq -r '(.obj | if type=="object" then .id else . end) // empty')
   [ -n "$INB_ID" ] || { echo "❌ Не удалось создать inbound: $ADD_RESP"; exit 1; }
   echo "Inbound создан (id=$INB_ID)"
 fi
@@ -93,7 +94,7 @@ fi
 
 c "Проверяю основного клиента (sonic-main)"
 C_LIST=$(api GET /panel/api/clients/list)
-CID=$(printf '%s' "$C_LIST" | jq -r '[.obj[]? | select(.email=="sonic-main")] | .[0].id // empty')
+CID=$(printf '%s' "$C_LIST" | jq -r '(.obj | if type=="array" then . elif type=="object" then (.rows // []) else [] end) | [.[]? | select(.email=="sonic-main")] | .[0].id // empty')
 if [ -z "$CID" ]; then
   echo "Создаю клиента sonic-main"
   CID=$(cat /proc/sys/kernel/random/uuid)
