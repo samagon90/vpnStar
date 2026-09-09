@@ -86,12 +86,6 @@ else
   echo "Inbound создан (id=$INB_ID)"
 fi
 
-if [ -n "$PRIV" ] && [ -z "$PUB" ]; then
-  KEYS2=$("$XRAY_BIN" x25519 -i "$PRIV" 2>/dev/null || true)
-  PUB=$(printf '%s\n' "$KEYS2" | awk -F': ' '/Public key/{print $2}' | tr -d '[:space:]')
-fi
-[ -n "$PUB" ] || { echo "❌ Не удалось получить Public Key"; exit 1; }
-
 c "Проверяю основного клиента (sonic-main)"
 C_LIST=$(api GET /panel/api/clients/list)
 CID=$(printf '%s' "$C_LIST" | jq -r '(.obj | if type=="array" then . elif type=="object" then (.rows // []) else [] end) | [.[]? | select(.email=="sonic-main")] | .[0].id // empty')
@@ -107,6 +101,30 @@ else
   echo "Клиент sonic-main уже есть — переиспользую"
 fi
 
+c "Получаю Public Key"
+VLINK=""
+# 1) готовая vless-ссылка sonic-main из панели (содержит pbk=...)
+LINK_JSON=$(api GET "/panel/api/clients/links/sonic-main")
+PANEL_LINK=$(printf '%s' "$LINK_JSON" | jq -r '.obj | if type=="array" then .[0] elif type=="string" then . else empty end' 2>/dev/null || true)
+PUB=$(printf '%s' "$PANEL_LINK" | grep -oE 'pbk=[A-Za-z0-9+/=]+' | head -1 | sed 's/^pbk=//')
+if [ -n "$PUB" ]; then
+  echo "Public Key получен из ссылки панели"
+  VLINK="$PANEL_LINK"
+fi
+# 2) конфиг xray на диске (privateKey)
+if [ -z "$PUB" ]; then
+  XRAY_CFG=$(ls /usr/local/etc/xray/config.json /etc/xray/config.json 2>/dev/null | head -1 || true)
+  if [ -n "$XRAY_CFG" ]; then
+    PRIV=$(grep -oE '"privateKey" *: *"[^"]+"' "$XRAY_CFG" 2>/dev/null | head -1 | sed -E 's/.*"privateKey" *: *"([^"]+)".*/\1/')
+  fi
+fi
+# 3) privateKey из списка inbound (если панель его отдаёт)
+if [ -z "$PUB" ] && [ -n "$PRIV" ]; then
+  KEYS2=$("$XRAY_BIN" x25519 -i "$PRIV" 2>/dev/null || true)
+  PUB=$(printf '%s\n' "$KEYS2" | awk -F': ' '/Public key/{print $2}' | tr -d '[:space:]')
+fi
+[ -n "$PUB" ] || { echo "❌ Не удалось получить Public Key (ни из ссылок панели, ни из конфига xray)"; exit 1; }
+
 if [ -n "$RU_IP" ]; then
   c "Открываю порт панели ($PORT) для RU-сервера $RU_IP"
   ufw allow from "$RU_IP" to any port "$PORT" proto tcp || true
@@ -118,7 +136,9 @@ case "$PUBIP" in
 esac
 [ -n "$PUBIP" ] || PUBIP="185.125.102.135"
 
-VLINK="vless://${CID}@${PUBIP}:443?encryption=none&security=reality&sni=www.microsoft.com&pbk=${PUB}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#SonicVPN"
+if [ -z "$VLINK" ]; then
+  VLINK="vless://${CID}@${PUBIP}:443?encryption=none&security=reality&sni=www.microsoft.com&pbk=${PUB}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#SonicVPN"
+fi
 
 echo
 echo "============================================================"
