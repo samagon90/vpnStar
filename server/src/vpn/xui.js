@@ -158,7 +158,7 @@ class Xui {
     const pbk = process.env.XUI_PUB_KEY || '';
     const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
     const link =
-      `vless://${c.id}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#${remark}`;
+      `vless://${c.id}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp#${remark}`;
     const share = { vless: [{ uuid: c.id, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts: { publicKey: pbk, serverName: sni, fingerprint: 'chrome' } }] };
     return {
       vless_link: link,

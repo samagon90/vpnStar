@@ -32,7 +32,7 @@ function mockProfileFor(user, device) {
   const fp = 'chrome';
   const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
   const link =
-    `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp/#${remark}`;
+    `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp#${remark}`;
   // конфиг в base64 (формат share v2ray) — импортируется в v2rayNG / Streisand / Hiddify
   const share = {
     vless: [{
