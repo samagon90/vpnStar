@@ -29,23 +29,25 @@
     `ssh -N -L 20461:127.0.0.1:20461 root@185.125.102.135` → затем в браузере
     `https://127.0.0.1:20461/3dtIfnbTYAw5E0rNtB/` (окно туннеля держать открытым).
 
-## 1.5. Windows: самый простой путь (двойные клики)
+## 1.5. Windows: самый простой путь (двойные клики, БЕЗ ввода паролей)
 
 1. В PowerShell (на своём компьютере) вставьте ОДНУ строку — она скачает
-   все кнопки на Рабочий стол:
+   кнопки на Рабочий стол и создаст `sonic-creds.txt` с паролями
+   (файл остаётся ТОЛЬКО у вас, в публичный репозиторий пароли не попадают):
    ```
-   $u='https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/deploy/windows/'; foreach($f in 'sonic-ssh-key.bat','sonic-launch.bat','de-3xui.bat','ru-site.bat','sonic-doctor.bat'){ iwr ($u+$f) -OutFile "$env:USERPROFILE\Desktop\$f" }
+   $u='https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/deploy/windows/'; foreach($f in 'sonic-launch.bat','sonic-launch.ps1','sonic-doctor.bat','sonic-doctor.ps1'){ iwr ($u+$f) -OutFile "$env:USERPROFILE\Desktop\$f" }; Set-Content "$env:USERPROFILE\Desktop\sonic-creds.txt" "DE_IP=185.125.102.135","DE_PASS=<пароль DE root>","DE_XUI_USER=<логин 3x-ui>","DE_XUI_PASS=<пароль 3x-ui>","RU_IP=87.249.49.204","RU_PASS=<пароль RU root>"
    ```
-2. **(один раз)** двойной клик `sonic-ssh-key.bat` — пароль 2 раза введёте
-   один единственный раз, дальше всё без паролей.
-3. **Двойной клик `sonic-launch.bat`** — сам настроит оба сервера,
-   снимет Public Key с немецкого и установит сайт на русский.
-   В конце — адрес сайта.
-4. Если что-то не так: двойной клик `sonic-doctor.bat` — диагностика
-   обоих серверов откроется в Блокноте, присылайте мне его.
+2. **Двойной клик `sonic-launch.bat`** — всё без паролей: настраивает
+   немецкий 3x-ui → снимает Public Key → ставит сайт на русский.
+   В конце — адрес сайта + Блокнот с логом (там токен админки).
+   Первый запуск ставит модуль Posh-SSH (~1 мин).
+3. Если что-то не так: двойной клик `sonic-doctor.bat` — диагностика
+   обоих серверов в Блокноте, присылайте мне её.
+4. Запасной путь (если Posh-SSH не установился): `de-3xui.bat` и
+   `ru-site.bat` (ввод пароля руками, правым кликом).
 
-(Если двойной клик спрашивает «Файл из другого компьютера» —
-«Дополнительные сведения» → «Выполнять в любом случае».)
+После успеха смените пароли серверов в панелях хостеров и обновите
+`sonic-creds.txt` (Блокнот → строки DE_PASS / RU_PASS).
 
 ## 2. КОМАНДА 1 — окно терминала НЕМЕЦКОГО сервера
 
