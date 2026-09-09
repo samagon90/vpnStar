@@ -86,6 +86,12 @@ else
   echo ".env создан (сайт: http://$RU_IP, admin-токен: $ADMIN)"
 fi
 
+c "Смягчаю fail2ban (10 попыток / блок 5 минут — чтобы не самозапирались)"
+if command -v fail2ban-client &>/dev/null; then
+  printf '[sshd]\nenabled = true\nmaxretry = 10\nfindtime = 600\nbantime = 300\n' > /etc/fail2ban/jail.d/sshd-relaxed.conf
+  fail2ban-client reload 2>/dev/null || systemctl restart fail2ban 2>/dev/null || true
+fi
+
 c "Запуск (pm2) + автозапуск при перезагрузке"
 pm2 delete sonicvpn 2>/dev/null || true
 pm2 start src/index.js --name sonicvpn

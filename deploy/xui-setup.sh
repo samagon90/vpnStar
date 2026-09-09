@@ -86,6 +86,12 @@ fi
 [ -n "$PUB" ] || { echo "❌ Не удалось получить Public Key"; exit 1; }
 [ -n "$CID" ] || { echo "❌ Не найден ID клиента (создайте Add Client в панели и повторите)"; exit 1; }
 
+c "Смягчаю fail2ban (10 попыток / блок 5 минут — чтобы не самозапирались)"
+if command -v fail2ban-client &>/dev/null; then
+  printf '[sshd]\nenabled = true\nmaxretry = 10\nfindtime = 600\nbantime = 300\n' > /etc/fail2ban/jail.d/sshd-relaxed.conf
+  fail2ban-client reload 2>/dev/null || systemctl restart fail2ban 2>/dev/null || true
+fi
+
 if [ -n "$RU_IP" ]; then
   c "Открываю порт панели ($PORT) для RU-сервера $RU_IP"
   ufw allow from "$RU_IP" to any port "$PORT" proto tcp || true
