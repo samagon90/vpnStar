@@ -71,7 +71,7 @@ INB_ID=$(printf '%s' "$LIST_JSON" | jq -r "${ROWS_NORMALIZE} | [.[]? | select(.p
 
 if [ -n "$INB_ID" ]; then
   echo "Inbound уже есть (id=$INB_ID) — переиспользую"
-  PRIV=$(printf '%s' "$LIST_JSON" | jq -r --argjson id "$INB_ID" "${ROWS_NORMALIZE} | [.[]? | select(.id==\$id)] | .[0] | (.streamSettings|fromjson).realitySettings.privateKey // empty")
+  PRIV=$(printf '%s' "$LIST_JSON" | jq -r --argjson id "$INB_ID" "${ROWS_NORMALIZE} | [.[]? | select(.id==\$id)] | .[0] | (.streamSettings | if type==\"object\" then . else fromjson end).realitySettings.privateKey // empty")
 else
   c "Создаю inbound VLESS+Reality (порт 443)"
   KEYS=$("$XRAY_BIN" x25519)
