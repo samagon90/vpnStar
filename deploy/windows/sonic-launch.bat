@@ -1,25 +1,28 @@
 @echo off
-chcp 65001 >nul
 setlocal EnableDelayedExpansion
-title Sonic VPN - запуск всех серверов одной кнопкой
+title Sonic VPN - one-click launch
 
-where ssh >nul 2>&1 || (echo ОШИБКА: на Windows не найден ssh. & pause & exit /b 1)
+where ssh >nul 2>&1 || (echo ERROR: ssh client not found on this Windows. & pause & exit /b 1)
 
 echo ============================================================
-echo   Sonic VPN - ЗАПУСК ОДНОЙ КНОПКОЙ
+echo   Sonic VPN - ONE-CLICK LAUNCH (both servers)
 echo
-echo   Пароль попросят 2 раза: немецкий и русский серверы.
-echo   Вводите пароль - НИЧЕГО НЕ СВЕТИТСЯ, это нормально,
-echo   просто печатайте и жмите Enter.
+echo   The password will be asked 2 times
+echo   (German server, then Russian server).
+echo   When you type the password NOTHING is shown -
+echo   that is normal. Just type it and press Enter.
+echo
+echo   Text from the servers may look broken here -
+echo   it is OK. The Notepad logs at the end are correct.
 echo ============================================================
 echo.
-echo [1/2] Немецкий сервер: настраиваем 3x-ui ...
+echo [1/2] German server: setting up 3x-ui ...
 ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 root@185.125.102.135 "curl -fsSL -o /root/xui-setup.sh https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/deploy/xui-setup.sh ^&^& bash /root/xui-setup.sh 12345678 12345678 87.249.49.204" > "%TEMP%\sonic-de.log" 2>&1
 findstr /c:"__SONIC_XUI_OK__" "%TEMP%\sonic-de.log" >nul
 if errorlevel 1 (
   echo.
-  echo X Немецкий сервер: не завершился.
-  echo   Подробности открыты в Блокноте - пришлите мне последние 15 строк.
+  echo X German server: NOT finished.
+  echo   Log opened in Notepad - send me the last 15 lines.
   notepad "%TEMP%\sonic-de.log"
   pause
   exit /b 1
@@ -28,31 +31,31 @@ for /f "usebackq tokens=1,* delims=:" %%a in (`findstr /c:"Public Key" "%TEMP%\s
 for /f "tokens=*" %%i in ("!PUBKEY!") do set "PUBKEY=%%i"
 if not defined PUBKEY (
   echo.
-  echo X В выводе немецкого сервера не нашёлся Public Key.
+  echo X Public Key not found in the German server log.
   notepad "%TEMP%\sonic-de.log"
   pause
   exit /b 1
 )
-echo   Готово. Public Key получен, передаём на русский сервер.
+echo   OK: Public Key captured. Starting the Russian server ...
 echo.
-echo [2/2] Русский сервер: ставим сайт, базу и админку ...
+echo [2/2] Russian server: installing the site (code, database, admin) ...
 ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 root@87.249.49.204 "curl -fsSL -o /root/app-setup.sh https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/deploy/app-setup.sh ^&^& bash /root/app-setup.sh 12345678 12345678 !PUBKEY!" > "%TEMP%\sonic-ru.log" 2>&1
 findstr /c:"__SONIC_SITE_OK__" "%TEMP%\sonic-ru.log" >nul
 if errorlevel 1 (
   echo.
-  echo X Русский сервер: не завершился.
-  echo   Подробности открыты в Блокноте - пришлите мне последние 15 строк.
+  echo X Russian server: NOT finished.
+  echo   Log opened in Notepad - send me the last 15 lines.
   notepad "%TEMP%\sonic-ru.log"
   pause
   exit /b 1
 )
-type "%TEMP%\sonic-ru.log"
 echo.
 echo ============================================================
-echo   ВСЁ ГОТОВО! Откройте в браузере:
+echo   DONE! Your site is live. Open in your browser:
 echo
 echo     http://87.249.49.204/
 echo
-echo   (Токен админки - в Блокноте sonic-ru.log выше)
+echo   The admin panel token is in the log (Notepad).
 echo ============================================================
+notepad "%TEMP%\sonic-ru.log"
 pause
