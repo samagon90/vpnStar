@@ -105,7 +105,7 @@ HEALTH=$(curl -s --max-time 5 http://127.0.0.1:3000/api/health || echo "")
 echo "health: $HEALTH"
 TS=$(date +%s)
 REG=$(curl -s --max-time 90 -X POST http://127.0.0.1:3000/api/register -H 'Content-Type: application/json' \
-  -d "{\"username\":\"selftest-$TS\",\"password\":\"12345678\"}" || echo "")
+  -d "{\"username\":\"selftest$TS\",\"password\":\"12345678\"}" || echo "")
 echo "$REG" | head -c 300; echo
 if printf '%s' "$REG" | grep -q '"error"'; then
   echo "❌ Самопроверка не удалась: аккаунт не создан."
