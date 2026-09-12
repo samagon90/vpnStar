@@ -48,12 +48,12 @@ echo "=== SAVE template (form fields) ==="
 S1=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/update" --data-urlencode "config@/tmp/tpl-new.json")
 echo "save attempt 1 (field 'config'): $(printf '%s' "$S1" | head -c 200)"
 sleep 2
-TPL2=$(json_get /panel/api/xray/ | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
+TPL2=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/" | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
 if ! printf '%s' "$TPL2" | grep -q 'dns-out'; then
   S2=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/update" --data-urlencode "jsonConfig@/tmp/tpl-new.json")
   echo "save attempt 2 (field 'jsonConfig'): $(printf '%s' "$S2" | head -c 200)"
   sleep 2
-  TPL2=$(json_get /panel/api/xray/ | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
+  TPL2=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/" | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
 fi
 printf '%s' "$TPL2" | grep -q 'dns-out' && echo "template saved: dns-out НА МЕСТЕ" || { echo "DNS_FAIL: template not saved (оба варианта полей)"; printf '%s' "$S1" | head -c 300; echo; exit 0; }
 
