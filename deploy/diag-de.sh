@@ -43,7 +43,15 @@ get_tpl() {
     || try_req GET /panel/api/xray/getDefaultJsonConfig
 }
 extract_tpl() {
-  printf '%s' "$TPL_RESP" | jq -r '.obj.config // .obj.jsonConfig // .obj.template // (if (.obj|type)=="string" then .obj else empty end) // .config // .jsonConfig // empty' 2>/dev/null
+  # obj может быть: строка-JSON {config, inboundTags, ...} / объект с config / сама строка конфига
+  printf '%s' "$TPL_RESP" | jq -r '
+    if (.obj | type) == "string" then
+      (.obj | fromjson) as $o
+      | if ($o | type) == "string" then $o
+        else ($o.config // $o.jsonConfig // $o.template // ($o | tojson)) end
+    else
+      .obj.config // .obj.jsonConfig // .obj.template // (.obj | tojson)
+    end' 2>/dev/null
 }
 
 csrf_get
@@ -59,8 +67,9 @@ echo "dns now: $(jq -c '.dns // "ABSENT"' /tmp/tpl.json)"
 jq '
   .dns = {"servers": ["1.1.1.1", "8.8.8.8"]}
   | .outbounds = ((.outbounds // []) | map(select(.tag != "dns-out"))) + [{"tag":"dns-out","protocol":"dns"}]
-  | .routing.rules = [{"network":"dns","outboundTag":"dns-out","type":"field"}]
-     + ((.routing.rules // []) | map(select((.outboundTag // "") != "dns-out")))
+  | .routing = ((.routing // {"domainStrategy":"AsIs","rules":[]})
+      | .rules = ([{"network":"dns","outboundTag":"dns-out","type":"field"}]
+          + ((.rules // []) | map(select((.outboundTag // "") != "dns-out")))))
 ' /tmp/tpl.json > /tmp/tpl-new.json || { echo "DNS_FAIL: jq modify error"; exit 0; }
 echo "new: dns=$(jq -c '.dns' /tmp/tpl-new.json) first_rule=$(jq -c '.routing.rules[0]' /tmp/tpl-new.json) last_out=$(jq -c '.outbounds[-1]' /tmp/tpl-new.json)"
 
