@@ -12,10 +12,13 @@
  * Ответы — JSON {success, msg, obj}. Панель на self-signed/LE SSL:
  * отдельный undici-agent с rejectUnauthorized:false (только для панели).
  */
-import { Agent } from 'undici';
+import { Agent, fetch as ufetch } from 'undici';
 import crypto from 'node:crypto';
 import { cfg } from '../config.js';
 
+// ВАЖНО: fetch и Agent — из ОДНОГО пакета undici. Системный (global) fetch
+// отклоняет Agent npm-undici другой версии (UND_ERR_INVALID_ARG),
+// поэтому весь трафик к панели идёт через ufetch (undici.fetch).
 const xuiAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 const PANEL_UA =
@@ -46,7 +49,7 @@ class Xui {
     this.cookies = new Map();
     this.csrf = '';
     // 1) CSRF-токен (заодно создаёт сессию и кладёт cookie)
-    const t = await fetch(`${cfg.xui_base}/csrf-token`, {
+    const t = await ufetch(`${cfg.xui_base}/csrf-token`, {
       headers: { 'User-Agent': PANEL_UA },
       dispatcher: xuiAgent,
     });
@@ -55,7 +58,7 @@ class Xui {
     if (!tj.obj) throw new Error(`3x-ui: csrf-token не получен (${t.status})`);
     this.csrf = String(tj.obj);
     // 2) вход
-    const res = await fetch(`${cfg.xui_base}/login`, {
+    const res = await ufetch(`${cfg.xui_base}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,7 +77,7 @@ class Xui {
 
   async api(path, body, retry = true) {
     if (this.cookies.size === 0) await this.login();
-    const res = await fetch(`${cfg.xui_base}${path}`, {
+    const res = await ufetch(`${cfg.xui_base}${path}`, {
       method: body ? 'POST' : 'GET',
       headers: {
         'Content-Type': 'application/json',
