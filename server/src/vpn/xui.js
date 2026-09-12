@@ -117,14 +117,14 @@ class Xui {
 
   /**
    * Один клиент 3x-ui = ОДНО устройство (limitIp: 1).
-   * email = наш стабильный ref; id = настоящий UUID (xray требует).
+   * email = наш стабильный ref. UUID генерирует сама панель
+   * (v3: per-protocol secrets server-side; поле — `uuid`, не `id`).
    */
   async addVlessClient(user, device) {
     const { id } = await this.inboundId();
     const ref = `vs-u${user.id}-d${device.id}-${Date.now().toString(36)}`;
     await this.api('/panel/api/clients/add', {
       client: {
-        id: crypto.randomUUID(),
         security: '',
         email: ref,
         flow: 'xtls-rprx-vision',
@@ -155,18 +155,23 @@ class Xui {
     if (!device || !device.ref_id) throw new Error('no device ref');
     const c = await this.clientByEmail(device.ref_id);
     if (!c) throw new Error('client not found in 3x-ui');
+    // v3 API: uuid лежит в поле `uuid`; старые версии — в `id`. Проверяем оба.
+    const uuid = String(c.uuid || c.id || '');
+    if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid)) {
+      throw new Error(`client uuid not found in 3x-ui (keys: ${Object.keys(c).join(',')})`);
+    }
     const host = process.env.XUI_HOST || 'vpn.example.com';
     const port = process.env.XUI_PORT || 443;
     const sni = process.env.XUI_SNI || 'www.microsoft.com';
     const pbk = process.env.XUI_PUB_KEY || '';
     const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
     const link =
-      `vless://${c.id}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp#${remark}`;
-    const share = { vless: [{ uuid: c.id, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts: { publicKey: pbk, serverName: sni, fingerprint: 'chrome' } }] };
+      `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp#${remark}`;
+    const share = { vless: [{ uuid, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts: { publicKey: pbk, serverName: sni, fingerprint: 'chrome' } }] };
     return {
       vless_link: link,
       config_text: Buffer.from(JSON.stringify(share)).toString('base64'),
-      host, port, uuid: c.id, demo: false,
+      host, port, uuid, demo: false,
     };
   }
 }
