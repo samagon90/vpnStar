@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# v13.2: ЧИНим DNS через туннель (шаблон конфига xray через /panel/api/xray/*).
-#  - dns.servers (1.1.1.1/8.8.8.8) + правило network=dns -> dns-out + outbound protocol=dns
-#  - проверка: socks5h (DNS сквозь туннель)
+# v13.4: DNS-фикс через шаблон xray. Форм-поле сохранения = xraySetting
+# (название из ответа GET: {clientReverseTags, inboundTags, outboundTestUrl, xraySetting}).
 set +e
 XP=/usr/local/x-ui/bin/xray-linux-amd64
 BASE="https://127.0.0.1:20461/3dtIfnbTYAw5E0rNtB"
 UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
 JAR=/tmp/panel_$$.jar
 rm -f "$JAR"
-TPL_RESP=""
 
 csrf_get() {
   rm -f "$JAR"
@@ -20,49 +18,30 @@ csrf_get() {
 json_get() { curl -ks -b "$JAR" -H "User-Agent: $UA" "$BASE$1"; }
 json_post() { curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -X POST "$BASE$1" ${2:+-d "$2"}; }
 
-try_req() { # $1=method $2=path $3=body(опц)
-  local m="$1" p="$2" b="$3" R CODE BODY
-  if [ "$m" = POST ]; then
-    R=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -X POST "$BASE$p" ${b:+"-d $b"} -w '\nhttp:%{http_code}')
-  else
-    R=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" "$BASE$p" -w '\nhttp:%{http_code}')
-  fi
-  CODE=$(printf '%s' "$R" | tail -1)
-  BODY=$(printf '%s' "$R" | sed '$d')
-  echo "  try $m $p -> $CODE len=${#BODY} body=$(printf '%s' "$BODY" | head -c 100)"
-  if [ ${#BODY} -gt 100 ]; then TPL_RESP="$BODY"; return 0; fi
-  return 1
-}
-get_tpl() {
-  TPL_RESP=""
-  try_req POST /panel/api/xray/ '{}' \
-    || try_req POST /panel/api/xray '{}' \
-    || try_req GET /panel/api/xray/ \
-    || try_req GET /panel/api/xray \
-    || try_req POST /panel/api/xray/getDefaultJsonConfig '{}' \
-    || try_req GET /panel/api/xray/getDefaultJsonConfig
-}
-extract_tpl() {
-  # obj может быть: строка-JSON {config, inboundTags, ...} / объект с config / сама строка конфига
-  printf '%s' "$TPL_RESP" | jq -r '
-    if (.obj | type) == "string" then
-      (.obj | fromjson) as $o
-      | if ($o | type) == "string" then $o
-        else ($o.config // $o.jsonConfig // $o.template // ($o | tojson)) end
-    else
-      .obj.config // .obj.jsonConfig // .obj.template // (.obj | tojson)
-    end' 2>/dev/null
+fetch_wrapper() { # печатает wrapper-объект (json) в stdout
+  curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' \
+    -X POST "$BASE/panel/api/xray/" -d '{}' | jq -c '.obj | if type=="string" then fromjson else . end' 2>/dev/null
 }
 
 csrf_get
-echo "=== read xray config template ==="
-get_tpl
-TPL=$(extract_tpl)
-echo "template len: ${#TPL}"
-[ ${#TPL} -lt 100 ] && { echo "DNS_FAIL: cannot read template"; exit 0; }
-echo "$TPL" > /tmp/tpl.json
-echo "template keys: $(jq -c 'keys' /tmp/tpl.json)"
-echo "dns now: $(jq -c '.dns // "ABSENT"' /tmp/tpl.json)"
+echo "=== read xray template ==="
+W=$(fetch_wrapper)
+echo "wrapper: $(printf '%s' "$W" | head -c 200)"
+printf '%s' "$W" | jq -e . >/dev/null 2>&1 || { echo "DNS_FAIL: wrapper not json"; exit 0; }
+printf '%s' "$W" > /tmp/wrapper.json
+XSET=$(jq -c '.xraySetting // .config // empty' /tmp/wrapper.json)
+[ -z "$XSET" ] || [ "$XSET" = "null" ] && { echo "DNS_FAIL: no xraySetting field. wrapper keys: $(jq -c 'keys' /tmp/wrapper.json)"; exit 0; }
+XTYPE=$(printf '%s' "$XSET" | jq -r 'type')
+if [ "$XTYPE" = "string" ]; then
+  printf '%s' "$XSET" | jq -r '.' > /tmp/xset.json
+elif [ "$XTYPE" = "object" ]; then
+  printf '%s' "$XSET" > /tmp/xset.json
+else
+  echo "DNS_FAIL: xraySetting type=$XTYPE"; exit 0
+fi
+jq -e 'type=="object"' /tmp/xset.json >/dev/null 2>&1 || { echo "DNS_FAIL: xset not a config object: $(head -c 150 /tmp/xset.json)"; exit 0; }
+echo "config keys: $(jq -c 'keys' /tmp/xset.json)"
+echo "dns now: $(jq -c '.dns // "ABSENT"' /tmp/xset.json)"
 
 jq '
   .dns = {"servers": ["1.1.1.1", "8.8.8.8"]}
@@ -70,26 +49,34 @@ jq '
   | .routing = ((.routing // {"domainStrategy":"AsIs","rules":[]})
       | .rules = ([{"network":"dns","outboundTag":"dns-out","type":"field"}]
           + ((.rules // []) | map(select((.outboundTag // "") != "dns-out")))))
-' /tmp/tpl.json > /tmp/tpl-new.json || { echo "DNS_FAIL: jq modify error"; exit 0; }
-echo "new: dns=$(jq -c '.dns' /tmp/tpl-new.json) first_rule=$(jq -c '.routing.rules[0]' /tmp/tpl-new.json) last_out=$(jq -c '.outbounds[-1]' /tmp/tpl-new.json)"
+' /tmp/xset.json > /tmp/xset-new.json || { echo "DNS_FAIL: jq modify error"; exit 0; }
+echo "new: dns=$(jq -c '.dns' /tmp/xset-new.json) rule0=$(jq -c '.routing.rules[0]' /tmp/xset-new.json) last_out=$(jq -c '.outbounds[-1]' /tmp/xset-new.json)"
 
-echo "=== SAVE template (form fields: config / jsonConfig) ==="
-S1=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/update" --data-urlencode "config@/tmp/tpl-new.json")
-echo "save(config): $(printf '%s' "$S1" | head -c 150)"
+echo "=== SAVE (form: xraySetting + исходные остальные поля) ==="
+OTU=$(jq -r '.outboundTestUrl // ""' /tmp/wrapper.json)
+ITAGS=$(jq -c '.inboundTags // []' /tmp/wrapper.json)
+CRTAGS=$(jq -c '.clientReverseTags // []' /tmp/wrapper.json)
+
+save_try() { # $1=имя поля конфига
+  local field="$1" R
+  R=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/update" \
+    --data-urlencode "${field}@/tmp/xset-new.json" \
+    --data-urlencode "outboundTestUrl=$OTU" \
+    --data-urlencode "inboundTags=$ITAGS" \
+    --data-urlencode "clientReverseTags=$CRTAGS")
+  echo "save(field=$field): $(printf '%s' "$R" | head -c 200)"
+  printf '%s' "$R" | grep -q '"success":true'
+}
+
+sleep 1
+save_try xraySetting || save_try config || save_try jsonConfig || { echo "DNS_FAIL: save failed"; exit 0; }
 sleep 2
-get_tpl >/dev/null
-TPL2=$(extract_tpl)
-if ! printf '%s' "$TPL2" | grep -q 'dns-out'; then
-  S2=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/update" --data-urlencode "jsonConfig@/tmp/tpl-new.json")
-  echo "save(jsonConfig): $(printf '%s' "$S2" | head -c 150)"
-  sleep 2
-  get_tpl >/dev/null
-  TPL2=$(extract_tpl)
-fi
-if printf '%s' "$TPL2" | grep -q 'dns-out'; then
+W2=$(fetch_wrapper)
+X2=$(jq -c '.xraySetting // .config // empty' <<<"$W2")
+if printf '%s' "$X2" | grep -q 'dns-out'; then
   echo "template saved: dns-out НА МЕСТЕ"
 else
-  echo "DNS_FAIL: template not saved"; printf '%s' "$S1" | head -c 300; echo; exit 0
+  echo "DNS_FAIL: not verified in re-read: $(printf '%s' "$X2" | head -c 200)"; exit 0
 fi
 
 echo "=== xray restart / verify ==="
