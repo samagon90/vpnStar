@@ -191,7 +191,7 @@ class Xui {
       spx ? `spx=${encodeURIComponent(spx)}` : '',
     ].filter(Boolean).join('&');
     const link =
-      `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp${extra ? `&${extra}` : ''}#${remark}`;
+      `vless://${uuid}@${host}:${port}?security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp${extra ? `&${extra}` : ''}#${remark}`;
     const realityOpts = { publicKey: pbk, serverName: sni, fingerprint: 'chrome' };
     if (sid) realityOpts.shortId = sid;
     if (spx) realityOpts.spiderX = spx;

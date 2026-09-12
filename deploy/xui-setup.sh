@@ -137,7 +137,7 @@ esac
 [ -n "$PUBIP" ] || PUBIP="185.125.102.135"
 
 if [ -z "$VLINK" ]; then
-  VLINK="vless://${CID}@${PUBIP}:443?encryption=none&security=reality&sni=www.microsoft.com&pbk=${PUB}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#SonicVPN"
+  VLINK="vless://${CID}@${PUBIP}:443?security=reality&sni=www.microsoft.com&pbk=${PUB}&fp=chrome&flow=xtls-rprx-vision&type=tcp/#SonicVPN"
 fi
 
 echo
