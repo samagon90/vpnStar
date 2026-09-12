@@ -21,7 +21,7 @@ Remove-SSHSession -SessionId $s1.SessionId | Out-Null
 Write-Host $c1.Output
 $newPub = ''
 foreach ($l in @($c1.Output)) {
-  if ($l -match '^DE_FIXED:\s*([A-Za-z0-9+/=]{20,})') { $newPub = $matches[1]; break }
+  if ($l -match '^DE_FIXED:\s*([A-Za-z0-9+/=_-]{20,})') { $newPub = $matches[1]; break }
 }
 if (-not $newPub) {
   Write-Host 'DE part failed - aborting (RU not touched).' -ForegroundColor Red
