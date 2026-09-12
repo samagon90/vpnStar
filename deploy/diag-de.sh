@@ -126,3 +126,8 @@ case "$D1$D2" in
   *200*) echo "DNS_FIXED: DNS через туннель работает" ;;
   *) echo "DNS_FAIL: dns через туннель всё ещё не работает" ;;
 esac
+
+# health-маркер для diag.ps1 (чтобы дальше запустилась внешняя проверка с RU)
+if [ ${#PUB} -ge 40 ] && [ "$PROBE" != "000" ]; then
+  echo "DE_FIXED: $PUB"
+fi

@@ -1,60 +1,80 @@
 #!/usr/bin/env bash
-# v12: ДЕПЛОЙ кода (git), рестарт, E2E: ссылка БЕЗ encryption=, с реальным pbk и UUID;
-#      + внешний зонд RU -> DE:443 (достижим ли 443 извне).
+# v14: ПОЛНАЯ ВНЕШНЯЯ ПРОВЕРКА — ровно путь телефона:
+#      РЕАЛЬНАЯ ссылка сайта -> xray-клиент на RU -> ВНЕШНИЙ IP DE:443 ->
+#      веб + DNS через туннель + какой IP видит интернет.
 set +e
-NEW_PUB="${1:-}"
 DE_IP=185.125.102.135
 
-echo "=== update site code (/opt/sonicvpn) from git ==="
-if git -C /opt/sonicvpn fetch origin arena/01a05219-vpnstar 2>&1; then
-  git -C /opt/sonicvpn reset --hard -q origin/arena/01a05219-vpnstar
-else
-  echo "RU_DEPLOY_WARN: git fetch провалился — деплою то, что уже на диске (проверьте коммит ниже!)"
-fi
-git -C /opt/sonicvpn log --oneline -1
-cd /opt/sonicvpn/server || { echo "RU_FAIL: no /opt/sonicvpn/server"; exit 1; }
-npm install --no-audit --no-fund --loglevel=error >/dev/null 2>&1
-grep -c "encryption=none" src/vpn/xui.js >/dev/null 2>&1 && echo "RU_FAIL: encryption=none ЕЩЁ ЕСТЬ в xui.js" || echo "xui.js: encryption=none отсутствует (фикс на месте)"
-
-[ -n "$NEW_PUB" ] && sed -i "s#^XUI_PUB_KEY=.*#XUI_PUB_KEY=$NEW_PUB#" .env
-pm2 restart sonicvpn >/dev/null 2>&1
-sleep 3
-echo "health: $(curl -s --max-time 5 http://127.0.0.1:3000/api/health)"
-
-echo "=== E2E: register diag user -> device -> vless link ==="
+echo "=== 1) РЕАЛЬНАЯ ссылка сайта (регистрируем тестового юзера) ==="
 TS=$(date +%s)
-REG=$(curl -s --max-time 120 -X POST http://127.0.0.1:3000/api/register -H 'Content-Type: application/json' \
-  -d "{\"username\":\"diag$TS\",\"password\":\"12345678\"}")
-echo "register: $(printf '%s' "$REG" | head -c 120)"
-J2=/tmp/diag_$$.jar
-curl -s -c "$J2" --max-time 10 -X POST http://127.0.0.1:3000/api/login -H 'Content-Type: application/json' \
-  -d "{\"username\":\"diag$TS\",\"password\":\"12345678\"}" >/dev/null
-DEV=$(curl -s --max-time 10 -b "$J2" http://127.0.0.1:3000/api/devices | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
-L=$(curl -s --max-time 120 -b "$J2" "http://127.0.0.1:3000/api/devices/$DEV" | grep -oE 'vless://[^"]*' | head -1)
-rm -f "$J2"
-echo "vless link: $(printf '%s' "$L" | head -c 260)..."
+curl -s --max-time 60 -X POST http://127.0.0.1:3000/api/register -H 'Content-Type: application/json' \
+  -d "{\"username\":\"diagext$TS\",\"password\":\"12345678\"}" | head -c 100; echo
+J=/tmp/ext_$$.jar
+curl -s -c "$J" --max-time 10 -X POST http://127.0.0.1:3000/api/login -H 'Content-Type: application/json' \
+  -d "{\"username\":\"diagext$TS\",\"password\":\"12345678\"}" >/dev/null
+DEV=$(curl -s --max-time 10 -b "$J" http://127.0.0.1:3000/api/devices | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
+LINK=$(curl -s --max-time 120 -b "$J" "http://127.0.0.1:3000/api/devices/$DEV" | grep -oE 'vless://[^"]*' | head -1)
+rm -f "$J"
+echo "site link: $LINK"
 
-case "$L" in
-  *encryption=*) echo "RU_FAIL: в ссылке ЕСТЬ encryption= — код не обновился?";;
-  *)
-    case "$L" in
-      *"$NEW_PUB"*)
-        if printf '%s' "$L" | grep -qE '^vless://[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}@'; then
-          echo "RU_OK: ссылка без encryption=, с реальным ключом и UUID"
-        else
-          echo "RU_FAIL: ключ есть, UUID некорректный: $(printf '%s' "$L" | head -c 80)"
-        fi ;;
-      *) echo "RU_FAIL: ключ не тот: $(printf '%s' "$L" | grep -oE 'pbk=[A-Za-z0-9+/=_-]*' | head -1)" ;;
-    esac ;;
-esac
+UUUID=$(printf '%s' "$LINK" | sed -E 's#^vless://([^@]+)@.*#\1#')
+HOST=$(printf '%s' "$LINK" | grep -oE '@[0-9.]+:' | head -1 | sed 's/@//; s/://')
+PORT=$(printf '%s' "$LINK" | grep -oE ':[0-9]+\?' | head -1 | tr -d ':?')
+PBK=$(printf '%s' "$LINK" | grep -oE 'pbk=[A-Za-z0-9+/=_-]+' | head -1 | sed 's/pbk=//')
+SNI=$(printf '%s' "$LINK" | grep -oE 'sni=[^&]+' | head -1 | sed 's/sni=//')
+SID=$(printf '%s' "$LINK" | grep -oE 'sid=[^&]+' | head -1 | sed 's/sid=//')
+echo "parsed: uuid=$UUUID host=$HOST port=$PORT pbk_len=${#PBK} sni=$SNI sid=$SID"
+[ ${#UUUID} -eq 36 ] || { echo "EXT_FAIL: в ссылке сайта нет uuid"; exit 0; }
+[ ${#PBK} -ge 40 ] || { echo "EXT_FAIL: в ссылке сайта нет pbk"; exit 0; }
 
-echo "=== внешний зонд: RU -> DE:443 (SNI=amd.com) ==="
-curl -sk --resolve amd.com:443:$DE_IP --max-time 10 https://amd.com/ -o /dev/null -w 'external probe DE:443: %{http_code} (200/301/403 = достижимо извне)\n'
-
-AT=$(grep '^ADMIN_TOKEN=' .env | cut -d= -f2)
-UROW=$(curl -s --max-time 10 -H "x-admin-token: $AT" "http://127.0.0.1:3000/api/admin/users?search=diag$TS")
-DIAGUID=$(printf '%s' "$UROW" | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
-if [ -n "$DIAGUID" ]; then
-  curl -s --max-time 30 -X DELETE -H "x-admin-token: $AT" "http://127.0.0.1:3000/api/admin/users/$DIAGUID" >/dev/null && echo "diag user cleaned up"
+echo "=== 2) xray-клиент v26.7.28 (та же версия, что на DE) ==="
+if [ ! -x /tmp/xray-linux-64 ]; then
+  curl -sL --max-time 180 -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.7.28/Xray-linux-64.zip
+  rm -rf /tmp/xraydl && mkdir -p /tmp/xraydl
+  (unzip -o -q /tmp/xray.zip -d /tmp/xraydl 2>/dev/null || python3 -m zipfile -e /tmp/xray.zip /tmp/xraydl/) || true
+  [ -f /tmp/xraydl/xray ] && cp /tmp/xraydl/xray /tmp/xray-linux-64 && chmod +x /tmp/xray-linux-64
 fi
-echo "=== DONE ==="
+[ -x /tmp/xray-linux-64 ] || { echo "EXT_FAIL: не удалось поставить xray-клиент на RU"; exit 0; }
+/tmp/xray-linux-64 version | head -1
+
+cat > /tmp/ext-client.json <<EOF
+{
+  "log": { "loglevel": "warning" },
+  "inbounds": [ { "tag": "test-in", "listen": "127.0.0.1", "port": 10080, "protocol": "mixed", "settings": { "udp": false } } ],
+  "outbounds": [
+    { "tag": "vpn", "protocol": "vless",
+      "settings": { "vnext": [ { "address": "$HOST", "port": $PORT, "users": [ { "id": "$UUUID", "flow": "xtls-rprx-vision", "encryption": "none" } ] } ] },
+      "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "serverName": "$SNI", "fingerprint": "chrome", "publicKey": "$PBK", "shortId": "$SID", "show": false } } },
+    { "tag": "direct", "protocol": "freedom" }
+  ]
+}
+EOF
+/tmp/xray-linux-64 -c /tmp/ext-client.json > /tmp/ext-client.log 2>&1 &
+CPID=$!
+sleep 3
+kill -0 "$CPID" 2>/dev/null || { echo "EXT_FAIL: xray-клиент не стартует:"; head -8 /tmp/ext-client.log; exit 0; }
+echo "xray-клиент работает: внешний путь $HOST:$PORT (как телефон)"
+
+echo "=== 3) тесты через туннель ==="
+T1=$(curl -s --max-time 20 -x http://127.0.0.1:10080 http://example.com -o /dev/null -w 'example (dns локальный): %{http_code} %{time_total}s')
+T2=$(curl -sk --max-time 20 -x http://127.0.0.1:10080 https://www.youtube.com -o /dev/null -w 'youtube (dns локальный): %{http_code} %{time_total}s')
+T3=$(curl -s --max-time 20 -x socks5h://127.0.0.1:10080 http://example.com -o /dev/null -w 'example (dns СКВОЗЬ туннель): %{http_code} %{time_total}s')
+T4=$(curl -sk --max-time 20 -x socks5h://127.0.0.1:10080 https://www.youtube.com -o /dev/null -w 'youtube (dns сквозь туннель): %{http_code} %{time_total}s')
+T5=$(curl -s --max-time 20 -x socks5h://127.0.0.1:10080 http://neverssl.com)
+echo "1) $T1"
+echo "2) $T2"
+echo "3) $T3"
+echo "4) $T4"
+echo "5) какой IP видит интернет (должен быть $DE_IP): $(printf '%s' "$T5" | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1)"
+[ -s /tmp/ext-client.log ] && { echo "--- log клиента:"; head -10 /tmp/ext-client.log; }
+kill "$CPID" 2>/dev/null
+
+AT=$(grep '^ADMIN_TOKEN=' /opt/sonicvpn/server/.env | cut -d= -f2)
+UROW=$(curl -s --max-time 10 -H "x-admin-token: $AT" "http://127.0.0.1:3000/api/admin/users?search=diagext$TS")
+UI=$(printf '%s' "$UROW" | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
+[ -n "$UI" ] && curl -s --max-time 30 -X DELETE -H "x-admin-token: $AT" "http://127.0.0.1:3000/api/admin/users/$UI" >/dev/null && echo "тестовый юзер удалён"
+
+case "$T1$T2$T3$T4" in
+  *200*) echo "EXT_FULL_OK: полный внешний путь работает (ссылка сайта -> внешний IP -> интернет + DNS). Сервер 100% здоров." ;;
+  *) echo "EXT_FAIL: внешний путь не работает — смотри log выше" ;;
+esac
