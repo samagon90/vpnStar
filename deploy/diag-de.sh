@@ -105,7 +105,7 @@ cat > /tmp/diag-client.json <<EOF
   "inbounds": [ { "tag": "test-in", "listen": "127.0.0.1", "port": 10080, "protocol": "mixed", "settings": { "udp": false } } ],
   "outbounds": [
     { "tag": "vpn", "protocol": "vless",
-      "settings": { "vnext": [ { "address": "127.0.0.1", "port": 443, "users": [ { "id": "$TUUD", "flow": "xtls-rprx-vision" } ] } ] },
+      "settings": { "vnext": [ { "address": "127.0.0.1", "port": 443, "users": [ { "id": "$TUUD", "flow": "xtls-rprx-vision", "encryption": "none" } ] } ] },
       "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "serverName": "$SNI", "fingerprint": "chrome", "publicKey": "$PUB", "shortId": "$SID", "show": false } } },
     { "tag": "direct", "protocol": "freedom" }
   ]
