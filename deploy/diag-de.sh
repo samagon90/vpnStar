@@ -24,12 +24,20 @@ json_get() { curl -ks -b "$JAR" -H "User-Agent: $UA" "$BASE$1"; }
 json_post() { curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -X POST "$BASE$1" ${2:+-d "$2"}; }
 
 csrf_get
-echo "=== GET xray config template ==="
-TPL_RESP=$(json_get /panel/api/xray/)
+echo "=== GET xray config template (попытки: POST/GET, ± trailing slash) ==="
+TPL_RESP=""
+for TRY in "POST /panel/api/xray/" "GET /panel/api/xray/" "GET /panel/api/xray" "POST /panel/api/xray"; do
+  M=${TRY%% *}; P=${TRY#* }
+  R=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" ${M:+"-X $M"} "$BASE$P" -w '\nhttp:%{http_code}')
+  CODE=$(printf '%s' "$R" | tail -1)
+  BODY=$(printf '%s' "$R" | sed '$d')
+  echo "try $TRY -> $CODE len=${#BODY}"
+  if [ ${#BODY} -gt 100 ]; then TPL_RESP="$BODY"; break; fi
+done
 printf '%s' "$TPL_RESP" | head -c 300; echo
 # шаблон может лежать в obj.config / obj.jsonConfig / obj (строка)
-TPL=$(printf '%s' "$TPL_RESP" | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
-[ -z "$TPL" ] && TPL=$(printf '%s' "$TPL_RESP" | jq -r '.config // .jsonConfig // empty')
+TPL=$(printf '%s' "$TPL_RESP" | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty' 2>/dev/null)
+[ -z "$TPL" ] && TPL=$(printf '%s' "$TPL_RESP" | jq -r '.config // .jsonConfig // empty' 2>/dev/null)
 echo "template len: ${#TPL}"
 [ ${#TPL} -lt 100 ] && { echo "DNS_FAIL: cannot read template. raw:"; printf '%s' "$TPL_RESP" | head -c 600; echo; exit 0; }
 echo "$TPL" > /tmp/tpl.json
@@ -48,12 +56,12 @@ echo "=== SAVE template (form fields) ==="
 S1=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/update" --data-urlencode "config@/tmp/tpl-new.json")
 echo "save attempt 1 (field 'config'): $(printf '%s' "$S1" | head -c 200)"
 sleep 2
-TPL2=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/" | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
+TPL2=$(json_get /panel/api/xray/ | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
 if ! printf '%s' "$TPL2" | grep -q 'dns-out'; then
   S2=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/update" --data-urlencode "jsonConfig@/tmp/tpl-new.json")
   echo "save attempt 2 (field 'jsonConfig'): $(printf '%s' "$S2" | head -c 200)"
   sleep 2
-  TPL2=$(curl -ks -b "$JAR" -H "User-Agent: $UA" -H "X-CSRF-Token: $CSRF" -X POST "$BASE/panel/api/xray/" | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
+  TPL2=$(json_get /panel/api/xray/ | jq -r '.obj.config // .obj.jsonConfig // (if (.obj|type)=="string" then .obj else empty end) // empty')
 fi
 printf '%s' "$TPL2" | grep -q 'dns-out' && echo "template saved: dns-out НА МЕСТЕ" || { echo "DNS_FAIL: template not saved (оба варианта полей)"; printf '%s' "$S1" | head -c 300; echo; exit 0; }
 

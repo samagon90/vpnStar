@@ -6,9 +6,12 @@ NEW_PUB="${1:-}"
 DE_IP=185.125.102.135
 
 echo "=== update site code (/opt/sonicvpn) from git ==="
-git -C /opt/sonicvpn fetch -q origin arena/01a05219-vpnstar && \
-  git -C /opt/sonicvpn reset --hard -q origin/arena/01a05219-vpnstar && \
-  git -C /opt/sonicvpn log --oneline -1
+if git -C /opt/sonicvpn fetch origin arena/01a05219-vpnstar 2>&1; then
+  git -C /opt/sonicvpn reset --hard -q origin/arena/01a05219-vpnstar
+else
+  echo "RU_DEPLOY_WARN: git fetch провалился — деплою то, что уже на диске (проверьте коммит ниже!)"
+fi
+git -C /opt/sonicvpn log --oneline -1
 cd /opt/sonicvpn/server || { echo "RU_FAIL: no /opt/sonicvpn/server"; exit 1; }
 npm install --no-audit --no-fund --loglevel=error >/dev/null 2>&1
 grep -c "encryption=none" src/vpn/xui.js >/dev/null 2>&1 && echo "RU_FAIL: encryption=none ЕЩЁ ЕСТЬ в xui.js" || echo "xui.js: encryption=none отсутствует (фикс на месте)"
