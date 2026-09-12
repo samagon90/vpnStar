@@ -25,6 +25,13 @@ case "$RU_IP" in ''|*[!0-9.]*) RU_IP="87.249.49.204";; esac
 [ -n "$U" ] && [ -n "$P" ] && [ -n "$PUBKEY" ] || {
   echo "Запуск: bash app-setup.sh ЛОГИН_ПАНЕЛИ ПАРОЛЬ_ПАНЕЛИ PUBLIC_KEY [XUI_BASE]"; exit 1; }
 
+# Схема панели (http/https): пробуем напрямую — RU-сервер до DE добирается (ufw разрешён)
+if ! curl -ks --max-time 6 "$XUI_BASE/" >/dev/null 2>&1; then
+  case "$XUI_BASE" in
+    https://*) XUI_BASE="${XUI_BASE/https:/http:}"; echo "Панель без TLS — переключаю XUI_BASE на $XUI_BASE" ;;
+  esac
+fi
+
 c() { printf "\n\033[1;34m==> %s\033[0m\n" "$1"; }
 
 c "Код → /opt/sonicvpn"
@@ -61,31 +68,33 @@ systemctl restart caddy
 echo "Caddy перезапущен"
 
 c ".env"
-if [ -f .env ]; then
-  echo ".env уже существует — оставляю без изменений (код и сервис обновлю)"
-else
+if [ ! -f .env ]; then
   cp .env.example .env
   SECRET=$(openssl rand -hex 32)
   ADMIN=$(openssl rand -hex 16)
   sed -i \
-    -e "s|^BASE_URL=.*|BASE_URL=http://$RU_IP|" \
-    -e "s|^SECRET_KEY=.*|SECRET_KEY=$SECRET|" \
-    -e "s|^PAYMENT_MODE=.*|PAYMENT_MODE=mock|" \
-    -e "s|^XUI_BASE=.*|XUI_BASE=$XUI_BASE|" \
-    -e "s|^XUI_USER=.*|XUI_USER=$U|" \
-    -e "s|^XUI_PASSWORD=.*|XUI_PASSWORD=$P|" \
-    -e "s|^AI_API_BASE=.*|AI_API_BASE=https://api.groq.com/openai/v1|" \
-    -e "s|^AI_MODEL=.*|AI_MODEL=llama-3.3-70b-versatile|" \
-    -e "s|^ADMIN_TOKEN=.*|ADMIN_TOKEN=$ADMIN|" \
+    -e "s#^BASE_URL=.*#BASE_URL=http://$RU_IP#" \
+    -e "s#^SECRET_KEY=.*#SECRET_KEY=$SECRET#" \
+    -e "s#^PAYMENT_MODE=.*#PAYMENT_MODE=mock#" \
+    -e "s#^AI_API_BASE=.*#AI_API_BASE=https://api.groq.com/openai/v1#" \
+    -e "s#^AI_MODEL=.*#AI_MODEL=llama-3.3-70b-versatile#" \
+    -e "s#^ADMIN_TOKEN=.*#ADMIN_TOKEN=$ADMIN#" \
     .env
-  {
-    echo "XUI_HOST=$DE_IP"
-    echo "XUI_PORT=443"
-    echo "XUI_SNI=www.microsoft.com"
-    echo "XUI_PUB_KEY=$PUBKEY"
-  } >> .env
   echo ".env создан (сайт: http://$RU_IP, admin-токен: $ADMIN)"
 fi
+# Данные панели — синхронизирую при КАЖДОМ запуске (адрес/схема/ключ могли измениться)
+grep -q '^XUI_HOST=' .env || echo "XUI_HOST=" >> .env
+grep -q '^XUI_PUB_KEY=' .env || echo "XUI_PUB_KEY=" >> .env
+sed -i \
+  -e "s#^XUI_BASE=.*#XUI_BASE=$XUI_BASE#" \
+  -e "s#^XUI_USER=.*#XUI_USER=$U#" \
+  -e "s#^XUI_PASSWORD=.*#XUI_PASSWORD=$P#" \
+  -e "s#^XUI_HOST=.*#XUI_HOST=$DE_IP#" \
+  -e "s#^XUI_PORT=.*#XUI_PORT=443#" \
+  -e "s#^XUI_SNI=.*#XUI_SNI=www.microsoft.com#" \
+  -e "s#^XUI_PUB_KEY=.*#XUI_PUB_KEY=$PUBKEY#" \
+  .env
+echo "Данные панели в .env обновлены (XUI_BASE=$XUI_BASE)"
 
 c "Смягчаю fail2ban (10 попыток / блок 5 минут — чтобы не самозапирались)"
 if command -v fail2ban-client &>/dev/null; then
@@ -114,7 +123,26 @@ if printf '%s' "$REG" | grep -q '"error"'; then
   echo "              2) на DE выполнено: ufw allow from $RU_IP to any port $(printf '%s' "$XUI_BASE" | sed -E 's#https?://[^/:]+:([0-9]+).*#\1#') proto tcp"
   exit 1
 fi
-echo "Самопроверка: тестовый аккаунт создан, ключ сгенерирован — вся цепочка работает ✅"
+echo "Самопроверка: тестовый аккаунт создан"
+# И главное: у него должна быть РЕАЛЬНАЯ ссылка (не демо-fallback из-за недостижимого 3x-ui)
+J=/tmp/sb_$$.jar
+curl -s -c "$J" --max-time 10 -X POST http://127.0.0.1:3000/api/login -H 'Content-Type: application/json' \
+  -d "{\"username\":\"selftest$TS\",\"password\":\"12345678\"}" >/dev/null || true
+DEV=$(curl -s --max-time 10 -b "$J" http://127.0.0.1:3000/api/devices | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+PLINK=$(curl -s --max-time 90 -b "$J" "http://127.0.0.1:3000/api/devices/$DEV" | grep -oE 'vless://[^"]*' | head -1 || true)
+rm -f "$J"
+case "$PLINK" in
+  *"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="*|*"sLpYQmH1zX8vT3bN9kJ5dR2fG7wCeUaV4hM6oB8qPy="*)
+    echo "❌ Сайт выдал ДЕМО-ссылку: с сервера не удаётся дойти до 3x-ui."
+    echo "   Панель: $XUI_BASE (пользователь: $U)"
+    echo "   Логи: pm2 logs sonicvpn --nostream --lines 30"
+    exit 1 ;;
+  *"$DE_IP"*)
+    echo "Самопроверка: реальная VLESS-ссылка (хост $DE_IP) сгенерирована — вся цепочка работает ✅" ;;
+  *)
+    echo "⚠️ VLESS-ссылку получить не удалось (profile: null)."
+    echo "   Логи: pm2 logs sonicvpn --nostream --lines 30" ;;
+esac
 
 echo
 ADMIN="${ADMIN:-}"
