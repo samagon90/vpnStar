@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# v8: рестарт панели (в-памяти копия инбаунда станет = БД), сверка:
-#     pbk в ссылке панели == pbk в конфиге xray. Дамп raw-клиента (имена полей).
+# v9: DE больше не правим — только health-check и выдача КЛЮЧА С КОТОРЫМ РАБОТАЕТ XRAY.
+#     (Сайт теперь сам берёт pbk/SNI/sid/spx из панели, так что расхождение
+#      в "ссылках" панели нас больше не касается.)
 set +e
 BASE="https://127.0.0.1:20461/3dtIfnbTYAw5E0rNtB"
 UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
@@ -25,31 +26,21 @@ login() {
     -d '{"username":"12345678","password":"12345678"}' -o /dev/null
 }
 
-get_pbk() {
-  api GET /panel/api/clients/links/sonic-main | grep -oE 'pbk=[A-Za-z0-9+/=_-]+' | head -1 | sed 's/^pbk=//'
-}
-
 CONFIG_PUB=$(jq -r '.inbounds[]? | select(.protocol=="vless") | .streamSettings.realitySettings.publicKey // empty' /usr/local/x-ui/bin/config.json 2>/dev/null | head -1)
-echo "config xray pbk: $CONFIG_PUB (len ${#CONFIG_PUB})"
+CONFIG_PORT=$(jq -r '.inbounds[]? | select(.protocol=="vless") | .port // empty' /usr/local/x-ui/bin/config.json 2>/dev/null | head -1)
+echo "xray config: pbk=$CONFIG_PUB (len ${#CONFIG_PUB}) port=$CONFIG_PORT"
 
-echo "=== restart panel (x-ui) ==="
-systemctl restart x-ui 2>/dev/null || systemctl restart 3x-ui 2>/dev/null || true
-sleep 12
 ss -tlnp 2>/dev/null | grep -E ':(443|20461) ' | head -3
 
 login
-PBK=$(get_pbk)
+LIST_PUB=$(api GET /panel/api/inbounds/list | jq -r '(.obj | if type=="array" then . else (.rows // []) end) | [.[]? | select(.protocol=="vless")] | .[0] | (.streamSettings | if type=="object" then . else (try fromjson catch {}) end).realitySettings.publicKey // empty')
+echo "panel /list object pbk: $LIST_PUB (len ${#LIST_PUB})"
+
 PROBE=$(curl -sk --resolve www.microsoft.com:443:127.0.0.1 --max-time 10 https://www.microsoft.com/ -o /dev/null -w '%{http_code}')
-echo "panel link pbk after restart: $PBK (len ${#PBK})"
 echo "reality probe: $PROBE"
 
-echo "=== raw client object (имена полей для uuid) ==="
-api GET /panel/api/clients/get/sonic-main | head -c 400; echo
-
-if [ "$PBK" = "$CONFIG_PUB" ] && [ ${#PBK} -ge 40 ] && [ "$PROBE" != "000" ]; then
-  echo "DE_FIXED: $PBK"
+if [ ${#CONFIG_PUB} -ge 40 ] && [ "$CONFIG_PUB" = "$LIST_PUB" ] && [ "$PROBE" != "000" ]; then
+  echo "DE_FIXED: $CONFIG_PUB"
 else
-  echo "DE_FAIL: mismatch (link=$PBK config=$CONFIG_PUB probe=$PROBE)"
-  echo "=== raw link ==="
-  api GET /panel/api/clients/links/sonic-main | head -c 400; echo
+  echo "DE_FAIL: config=$CONFIG_PUB list=$LIST_PUB probe=$PROBE"
 fi

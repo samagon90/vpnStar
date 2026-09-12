@@ -112,7 +112,29 @@ class Xui {
   }
 
   async clientByEmail(email) {
-    return this.api(`/panel/api/clients/get/${encodeURIComponent(email)}`);
+    // v3: клиент вложен: obj = { client: {...} } — достаём внутренний объект
+    const o = await this.api(`/panel/api/clients/get/${encodeURIComponent(email)}`);
+    return o?.client ?? o;
+  }
+
+  /**
+   * Reality-параметры (pbk, SNI, shortId, spiderX, порт) берутся НАПРЯМУЮ
+   * из панели — это то, с чем реально работает xray. Копия в .env
+   * (XUI_PUB_KEY/XUI_SNI) — только последний фолбэк. Кэш 5 минут.
+   */
+  #params = null;
+  async inboundParams(force = false) {
+    if (!force && this.#params && Date.now() - this.#params.at < 5 * 60 * 1000) return this.#params;
+    const { row, port } = await this.inboundId();
+    const ss = typeof row.streamSettings === 'string' ? JSON.parse(row.streamSettings) : row.streamSettings || {};
+    const rs = ss.realitySettings || {};
+    const pbk = String(rs.publicKey || process.env.XUI_PUB_KEY || '');
+    const sni = String(rs.serverNames?.[0] || process.env.XUI_SNI || 'www.microsoft.com');
+    const sid = Array.isArray(rs.shortIds) && rs.shortIds.length ? String(rs.shortIds[0]) : '';
+    const spx = String(rs.spiderX || '');
+    if (!pbk) throw new Error('3x-ui: не найден reality publicKey в инбаунде');
+    this.#params = { pbk, sni, sid, spx, port, at: Date.now() };
+    return this.#params;
   }
 
   /**
@@ -155,19 +177,25 @@ class Xui {
     if (!device || !device.ref_id) throw new Error('no device ref');
     const c = await this.clientByEmail(device.ref_id);
     if (!c) throw new Error('client not found in 3x-ui');
-    // v3 API: uuid лежит в поле `uuid`; старые версии — в `id`. Проверяем оба.
+    // v3 API: uuid — поле `uuid` (объект клиента уже развёрнут в clientByEmail)
     const uuid = String(c.uuid || c.id || '');
     if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid)) {
       throw new Error(`client uuid not found in 3x-ui (keys: ${Object.keys(c).join(',')})`);
     }
+    const { pbk, sni, sid, spx, port: rport } = await this.inboundParams();
     const host = process.env.XUI_HOST || 'vpn.example.com';
-    const port = process.env.XUI_PORT || 443;
-    const sni = process.env.XUI_SNI || 'www.microsoft.com';
-    const pbk = process.env.XUI_PUB_KEY || '';
+    const port = process.env.XUI_PORT || rport || 443;
     const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
+    const extra = [
+      sid ? `sid=${encodeURIComponent(sid)}` : '',
+      spx ? `spx=${encodeURIComponent(spx)}` : '',
+    ].filter(Boolean).join('&');
     const link =
-      `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp#${remark}`;
-    const share = { vless: [{ uuid, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts: { publicKey: pbk, serverName: sni, fingerprint: 'chrome' } }] };
+      `vless://${uuid}@${host}:${port}?encryption=none&security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp${extra ? `&${extra}` : ''}#${remark}`;
+    const realityOpts = { publicKey: pbk, serverName: sni, fingerprint: 'chrome' };
+    if (sid) realityOpts.shortId = sid;
+    if (spx) realityOpts.spiderX = spx;
+    const share = { vless: [{ uuid, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts }] };
     return {
       vless_link: link,
       config_text: Buffer.from(JSON.stringify(share)).toString('base64'),

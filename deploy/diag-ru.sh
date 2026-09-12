@@ -30,13 +30,13 @@ curl -s -c "$J2" --max-time 10 -X POST http://127.0.0.1:3000/api/login -H 'Conte
 DEV=$(curl -s --max-time 10 -b "$J2" http://127.0.0.1:3000/api/devices | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
 L=$(curl -s --max-time 120 -b "$J2" "http://127.0.0.1:3000/api/devices/$DEV" | grep -oE 'vless://[^"]*' | head -1)
 rm -f "$J2"
-echo "vless link: $(printf '%s' "$L" | head -c 170)..."
+echo "vless link: $(printf '%s' "$L" | head -c 230)..."
 case "$L" in
   *"$NEW_PUB"*)
     if printf '%s' "$L" | grep -qE '^vless://[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}@'; then
       echo "RU_OK: РЕАЛЬНАЯ ССЫЛКА — ключ и UUID на месте, цепочка работает"
     else
-      echo "RU_FAIL: ключ есть, но UUID в ссылке некорректный: $(printf '%s' "$L" | head -c 60)"
+      echo "RU_FAIL: ключ есть, но UUID в ссылке некорректный: $(printf '%s' "$L" | head -c 80)"
     fi ;;
   *) echo "RU_FAIL: ссылка всё ещё не реальная — pm2 logs sonicvpn --nostream --lines 20" ;;
 esac
