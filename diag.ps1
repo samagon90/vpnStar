@@ -13,8 +13,10 @@ $r = New-Object PSCredential 'root', $sec
 Write-Host "Connecting to $ip (RU server) ..." -ForegroundColor Cyan
 $cmd = 'pm2 logs sonicvpn --nostream --lines 40; echo ---ENV---; grep XUI /opt/sonicvpn/server/.env'
 try {
-  $c = Invoke-SSHCommand -ComputerName $ip -Credential $r -Command $cmd -AcceptKey
+  $s = New-SSHSession -ComputerName $ip -Credential $r -AcceptKey
+  $c = Invoke-SSHCommand -SessionId $s.SessionId -Command $cmd
   $c.Output
+  Remove-SSHSession -SessionId $s.SessionId | Out-Null
 } catch {
   Write-Host ("SSH error: " + $_.Exception.Message) -ForegroundColor Red
 }
