@@ -25,7 +25,8 @@ qrcode (QR), frontend — чистый HTML/CSS/JS без сборки.
 
 ```
 public/                 сайт (статика): index (лендинг), auth, account (кабинет), checkout,
-                        help.html («Как подключиться»: APK Sonic VPN, Streisand/Hiddify iOS, v2rayN)
+                        help.html («Как подключиться»: APK Sonic VPN, Streisand/Hiddify iOS, v2rayN),
+                        debug.html (🔍 диагностика: проверки С ТЕЛЕФОНА + серверные, отчёт-копипаста)
   img/logo.png          логотип. ⚠️ ГЕНЕРИРОВАННЫЙ плейсхолдер (твой исходник так и не прилетел
                         в песочницу) — заменить файл = обновить бренд везде (шапки, favicon)
 android/                наше Android-приложение «Sonic VPN»: ребрендинг v2rayNG 2.2.6 (GPLv3).
@@ -118,6 +119,15 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
     `ru.sonicvpn.app`, наша иконка/цвета; сборка — GitHub Actions (workflow sonicvpn-android),
     APK падает в GitHub Release. Сборка в песочнице НЕПРОВЕРЕНА (нет доступа к Maven/SDK) —
     запустить workflow вручную и убедиться, что APK выложился
+12a. **Диагностика** (`public/debug.html` + `server/src/routes/debug.js` → `GET /api/debug/check`,
+    за requireAuth): для владельца-новичка «почему не работает интернет». С ТЕЛЕФОНА: P1 —
+    fetch `https://<VPN-сервер>:443/` no-cors (12с таймаут: ok = путь/туннель жив,
+    таймаут = сеть роняет пакеты → блокировка оператора), P2 — DNS (dns.google DoH),
+    P3 — google/generate_204. СЕРВЕРНО (RU→DE): TCP-пинг порта, Reality TLS-проба с реальным
+    SNI (ответит истинный сайт), параметры инбоунда из панели (pbk/sni/sid/порт) — сравниваются
+    с профилем пользователя (старый профиль = другой pbk/sni/порт). Прогон 2 раза (VPN вкл/выкл),
+    чекбокс «VPN подключён», блок «Копировать отчёт» (navigator.clipboard) → владелец вставляет
+    в чат. Ссылка «🔍 Диагностика» в шапках index/account/help.
 12. **Страница «Как подключиться»** (`public/help.html`): Android (наш APK + инструкция),
     iOS (Streisand/Hiddify из App Store + инструкция), Windows (v2rayN), macOS/Linux (Hiddify),
     FAQ по подключению; ссылки на неё: шапка/футер лендинга, кабинет (раздел устройств),

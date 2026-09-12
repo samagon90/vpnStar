@@ -10,6 +10,7 @@ import accountRoutes from './routes/account.js';
 import devicesRoutes from './routes/devices.js';
 import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
+import debugRoutes from './routes/debug.js';
 import { startBot } from './bot.js';
 import { setBot } from './botref.js';
 import { startCron } from './cron.js';
@@ -51,6 +52,7 @@ app.use('/api/admin', adminRoutes); // ДО общего requireAuth: админ
 app.use('/api/payments', requireAuth, payRoutes);
 app.use('/api', requireAuth, accountRoutes);
 app.use('/api/devices', requireAuth, devicesRoutes);
+app.use('/api/debug', requireAuth, debugRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // --- Статика: сайт (работает в РФ без VPN: деплой на Cloudflare Pages / за Cloudflare-прокси) ---

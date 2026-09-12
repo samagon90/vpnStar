@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Диагностика — Sonic VPN</title>
+<link rel="icon" type="image/png" href="img/logo.png">
+<link rel="stylesheet" href="css/site.css">
+<style>
+  .step{display:flex;gap:10px;margin:8px 0;font-size:.95rem}
+  .step b{color:var(--accent,#1e6fff);min-width:22px}
+  .chk-row{display:flex;gap:10px;align-items:center;margin:14px 0;flex-wrap:wrap}
+  .res-item{padding:10px 0;border-bottom:1px solid var(--card-b,rgba(255,255,255,.08));font-size:.9rem;line-height:1.45}
+  .res-item:last-child{border-bottom:0}
+  .ok-badge{color:#31c48d;font-weight:700}
+  .bad-badge{color:#ff6b6b;font-weight:700}
+  #report-box{margin-top:14px;background:rgba(0,0,0,.35);border-radius:12px;padding:14px;white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem;max-height:260px;overflow:auto}
+  .verdict{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.06);font-size:.92rem;line-height:1.5}
+  .verdict b{color:#ffd166}
+</style>
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><img src="img/logo.png" alt="Sonic VPN">Sonic VPN</a>
+    <nav>
+      <ul>
+        <li><a href="account.html">Кабинет</a></li>
+        <li><a href="https://t.me/sonicvpn_bot" target="_blank">Поддержка</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section style="padding-top:36px;max-width:680px;margin:0 auto">
+
+    <div class="panel">
+      <h3><span class="l">🔍 Диагностика</span></h3>
+      <p class="hint" style="margin-top:-4px">Поможет понять, почему не грузятся сайты. Проверки выполняются прямо с вашего телефона.</p>
+
+      <div class="step"><b>1</b><span>Откройте <b>Кабинет</b>, обновите ссылку (QR) по инструкции и импортируйте её в приложение. Убедитесь, что VPN <b>подключён</b>.</span></div>
+      <div class="step"><b>2</b><span>Выберите устройство и нажмите <b>«Запустить проверки»</b>.</span></div>
+      <div class="step"><b>3</b><span>Выключите VPN и нажмите «Запустить проверки» <b>второй раз</b> (это покажет, заблокирован ли сервер сетью оператора).</span></div>
+      <div class="step"><b>4</b><span>Нажмите <b>«Копировать отчёт»</b> и пришлите его в чат поддержки.</span></div>
+
+      <div class="chk-row">
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="vpn-on" checked style="width:18px;height:18px">
+          <span>VPN сейчас <b>подключён</b> (включён в приложении)</span>
+        </label>
+      </div>
+
+      <div class="chk-row">
+        <select id="dev-sel" style="flex:1;min-width:180px">
+          <option value="">Выберите устройство…</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" id="run" style="width:100%">🚀 Запустить проверки</button>
+      <p class="hint" id="msg" style="margin-top:10px"></p>
+    </div>
+
+    <div class="panel" id="results-panel" style="display:none">
+      <h3><span class="l">📋 Результаты</span></h3>
+      <div id="results"></div>
+      <div class="verdict" id="verdict" style="display:none"></div>
+      <div id="report-box" style="display:none"></div>
+      <div class="chk-row" id="copy-row" style="display:none">
+        <button class="btn btn-primary" id="copy" style="flex:1">📋 Копировать отчёт (вставить в чат)</button>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const REPORTS = []; // все прогоны — в одном отчёте
+
+function timeoutSignal(ms) {
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
+
+function parseLink(link) {
+  const u = {};
+  const m = String(link || '').match(/^vless:\/\/([^@]+)@([^:\/]+):(\d+)\?(.*)$/);
+  if (!m) return u;
+  u.uuid = m[1]; u.host = m[2]; u.port = m[3];
+  for (const kv of m[4].split('#')[0].split('&')) {
+    const i = kv.indexOf('=');
+    if (i < 0) continue;
+    u[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+  }
+  return u;
+}
+
+async function init() {
+  try { await API.get('/api/me'); } catch (e) { if (e.status === 401) location.href = 'auth.html'; return; }
+  let devs = [];
+  try { devs = await API.get('/api/devices'); } catch { /* без устройств */ }
+  const sel = $('dev-sel');
+  sel.innerHTML = '<option value="">Выберите устройство…</option>' +
+    devs.map((d) => `<option value="${d.id}">${(d.name || 'Устройство #' + d.id).replace(/</g, '&lt;')}</option>`).join('');
+}
+
+// Прогон одной пачки проверок. Возвращает объект результата.
+async function runOnce(P) {
+  const r = {
+    time: new Date().toLocaleString('ru-RU'),
+    vpn: $('vpn-on').checked ? 'ВКЛЮЧЁН' : 'выключен',
+    P1: null, P2: null, P3: null, P4: null,
+  };
+  // P1 — доходит ли телефон до VPN-сервера (TLS-рукопожатие до DE:443)
+  {
+    const t0 = performance.now();
+    try {
+      await fetch(`https://${P.host}:${P.port}/`, { mode: 'no-cors', cache: 'no-store', signal: timeoutSignal(12000) });
+      r.P1 = { ok: true, ms: Math.round(performance.now() - t0), note: 'соединение с сервером установлено' };
+    } catch (e) {
+      const ms = Math.round(performance.now() - t0);
+      r.P1 = { ok: false, ms, note: ms >= 11000 ? 'таймаут 12с — пакетов к серверу не доходит' : `ошибка ${e.name || e.message}` };
+    }
+  }
+  // P2 — DNS (Google DoH)
+  {
+    const t0 = performance.now();
+    try {
+      const res = await fetch('https://dns.google/resolve?name=youtube.com', { cache: 'no-store', signal: timeoutSignal(10000) });
+      let ans = '';
+      try { const j = await res.json(); ans = `ответов:${(j.Answer || []).length}`; } catch { /* ignore */ }
+      r.P2 = { ok: res.ok, ms: Math.round(performance.now() - t0), note: `status=${res.status} ${ans}`.trim() };
+    } catch (e) {
+      r.P2 = { ok: false, ms: Math.round(performance.now() - t0), note: `ошибка ${e.name || e.message}` };
+    }
+  }
+  // P3 — интернет в целом (Google 204)
+  {
+    const t0 = performance.now();
+    try {
+      const res = await fetch('https://www.google.com/generate_204', { cache: 'no-store', signal: timeoutSignal(10000) });
+      r.P3 = { ok: res.status === 204, ms: Math.round(performance.now() - t0), note: `status=${res.status}` };
+    } catch (e) {
+      r.P3 = { ok: false, ms: Math.round(performance.now() - t0), note: `ошибка ${e.name || e.message}` };
+    }
+  }
+  // P4 — серверная сторона (проверяет наш сервер сам себя)
+  try {
+    const d = await API.get('/api/debug/check');
+    r.P4 = d;
+  } catch (e) {
+    r.P4 = { error: e.message };
+  }
+  return r;
+}
+
+function fmtLine(label, r, extra = '') {
+  const badge = r && (r.ok !== false) ? 'ok' : 'bad';
+  const ms = r && typeof r.ms === 'number' ? `${r.ms}ms` : '';
+  return `<div class="res-item"><span class="${badge === 'ok' ? 'ok-badge' : 'bad-badge'}">[${r ? (r.ok !== false ? 'OK' : 'BAD') : '…'}]</span> <b>${label}</b> ${ms} ${r && r.note ? '— ' + r.note : ''} ${extra}</div>`;
+}
+
+function buildReport(P) {
+  let s = `SONIC-DEBUG ${new Date().toLocaleString('ru-RU')}\n`;
+  s += `link: uuid=${P.uuid || '?'} host=${P.host || '?'}:${P.port || '?'} pbk=${(P.pbk || '?').slice(0, 12)}… sni=${P.sni || '?'} sid=${P.sid || '?'}\n`;
+  for (const r of REPORTS) {
+    s += `--- run ${r.time} vpn=${r.vpn}\n`;
+    s += `P1 server: ${r.P1 ? (r.P1.ok ? 'OK' : 'FAIL') + ' ' + r.P1.ms + 'ms ' + r.P1.note : '…'}\n`;
+    s += `P2 dns: ${r.P2 ? (r.P2.ok ? 'OK' : 'FAIL') + ' ' + r.P2.ms + 'ms ' + r.P2.note : '…'}\n`;
+    s += `P3 google: ${r.P3 ? (r.P3.ok ? 'OK' : 'FAIL') + ' ' + r.P3.ms + 'ms ' + r.P3.note : '…'}\n`;
+    if (r.P4 && r.P4.error) s += `P4 server-side: FAIL ${r.P4.error}\n`;
+    else if (r.P4) s += `P4 server-side: tcp=${r.P4.tcp} tls=${r.P4.tls || 'n/a'} panel: port=${r.P4.panel && r.P4.panel.port} pbk=${(r.P4.panel && r.P4.panel.pbk || '').slice(0, 12)}… sni=${r.P4.panel && r.P4.panel.sni} sid=${r.P4.panel && r.P4.panel.sid}\n`;
+  }
+  s += `ua: ${navigator.userAgent}\n`;
+  return s;
+}
+
+function makeVerdict(P) {
+  if (!REPORTS.length) return '';
+  const last = REPORTS[REPORTS.length - 1];
+  const v = [];
+  // Сравнение ключей профиля с живыми параметрами панели
+  if (last.P4 && last.P4.panel && !last.P4.panel.error) {
+    const p = last.P4.panel;
+    if (P.pbk && p.pbk && P.pbk !== p.pbk) v.push('⚠️ В профиле <b>другой ключ pbk</b>, чем на сервере — профиль старый. Возьмите свежий QR из Кабинета!');
+    if (P.sni && p.sni && P.sni !== p.sni) v.push('⚠️ В профиле другой SNI, чем на сервере — профиль старый.');
+    if (String(P.port) !== String(p.port)) v.push('⚠️ В профиле другой порт, чем на сервере — профиль старый.');
+  }
+  const on = REPORTS.find((r) => r.vpn === 'ВКЛЮЧЁН');
+  const off = REPORTS.find((r) => r.vpn === 'выключен');
+  if (off) {
+    if (off.P1 && off.P1.ok === false && off.P1.ms >= 11000) v.push('🔴 Без VPN телефон <b>вообще не видит сервер</b> (таймаут). Сеть оператора блокирует/роняет пакеты до сервера — это блокировка провайдером.');
+    else if (off.P1 && off.P1.ok) v.push('🟢 Без VPN сервер из вашей сети достижим — блокировки оператором нет.');
+  }
+  if (on) {
+    if (on.P1 && on.P1.ok && on.P3 && on.P3.ok === false) v.push('🟡 Туннель до сервера жив, но сайты не грузятся — проверьте в приложении опцию «DNS через туннель / системный DNS».');
+    if (on.P1 && on.P1.ok === false && on.P1.ms >= 11000) v.push('🔴 С включённым VPN туннель не работает (таймаут). Либо профиль не соответствует серверу, либо сеть блокирует сервер — см. проверки без VPN.');
+    if (on.P1 && on.P1.ok && on.P3 && on.P3.ok) v.push('🟢 С VPN всё проходит. Если сайты всё ещё не грузятся — перезапустите приложение и телефон.');
+  }
+  return v.length ? v.join('<br>') : 'Заполните прогон с включённым и выключенным VPN — вывод появится выше.';
+}
+
+async function onRun() {
+  const id = $('dev-sel').value;
+  if (!id) { $('msg').textContent = 'Сначала выберите устройство'; $('msg').className = 'msg err'; return; }
+  $('msg').textContent = 'Запуск… (до 40 секунд)';
+  $('msg').className = 'msg';
+  $('run').disabled = true;
+  let P = null;
+  try {
+    const r = await API.get(`/api/devices/${id}`);
+    P = parseLink(r.profile && r.profile.vless_link);
+    if (!P.host) { $('msg').textContent = 'Не удалось разобрать профиль — обновите ссылку в Кабинете'; $('msg').className = 'msg err'; return; }
+  } catch (e) {
+    $('msg').textContent = 'Ошибка: ' + e.message;
+    $('msg').className = 'msg err';
+    return;
+  }
+  const run = await runOnce(P);
+  REPORTS.push(run);
+
+  // Отрисовка
+  let html = '';
+  for (const r of REPORTS) {
+    html += `<div class="res-item" style="font-weight:700">Прогон ${r.time} — VPN: ${r.vpn}</div>`;
+    html += fmtLine('P1 VPN-сервер (DE:443)', r.P1);
+    html += fmtLine('P2 DNS (dns.google)', r.P2);
+    html += fmtLine('P3 Google 204', r.P3);
+    if (r.P4 && r.P4.error) html += fmtLine('P4 серверная проверка', { ok: false, note: r.P4.error });
+    else if (r.P4) html += `<div class="res-item"><span class="ok-badge">[OK]</span> <b>P4 серверная проверка</b> — tcp: ${r.P4.tcp}${r.P4.tls ? ', tls: ' + r.P4.tls : ''}${r.P4.panel && !r.P4.panel.error ? ', панель: порт ' + r.P4.panel.port + ' pbk ' + (r.P4.panel.pbk || '').slice(0, 10) + '… sni ' + r.P4.panel.sni : ', панель: ' + (r.P4.panel && r.P4.panel.error || '—')}</div>`;
+  }
+  $('results').innerHTML = html;
+  $('results-panel').style.display = 'block';
+
+  const verdict = makeVerdict(P);
+  $('verdict').innerHTML = verdict;
+  $('verdict').style.display = verdict ? 'block' : 'none';
+
+  const report = buildReport(P);
+  $('report-box').textContent = report;
+  $('report-box').style.display = 'block';
+  $('copy-row').style.display = 'flex';
+
+  $('msg').textContent = 'Готово. Пришлите отчёт в чат поддержки.';
+  $('msg').className = 'msg ok';
+  $('run').disabled = false;
+  $('results-panel').scrollIntoView({ behavior: 'smooth' });
+}
+
+$('copy').onclick = async () => {
+  const text = $('report-box').textContent;
+  const ok = () => { $('msg').textContent = 'Отчёт скопирован — вставьте его в чат поддержки 🙂'; $('msg').className = 'msg ok'; };
+  const fail = () => { $('report-box').style.maxHeight = 'none'; $('msg').textContent = 'Копирование не сработало. Нажмите на текст отчёта, выберите его и скопируйте вручную.'; $('msg').className = 'msg err'; };
+  // 1) современный способ (работает на https)
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); ok(); return; } catch { /* дальше */ }
+  }
+  // 2) фолбэк для http: скрытое поле + execCommand
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;width:40px;height:40px;opacity:0.01';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  let done = false;
+  try { done = document.execCommand('copy'); } catch { /* ignore */ }
+  ta.remove();
+  done ? ok() : fail();
+};
+
+$('run').onclick = onRun;
+init();
+</script>
+</body>
+</html>
