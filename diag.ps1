@@ -1,22 +1,30 @@
-# Sonic VPN - diagnostics: read site logs + XUI env on the RU server (read-only)
-# Credentials come from local sonic-creds.txt (never stored in this repo).
+# Sonic VPN - diagnostics + auto-fix (DE: real pubkey, RU: why xui is unreachable + fix)
+# Read credentials from local sonic-creds.txt (never stored in this repo).
 Import-Module Posh-SSH
 $lines = Get-Content "$HOME\sonic-creds.txt"
-$ip = (($lines | Where-Object { $_ -like 'RU_IP=*' }) | Select-Object -First 1) -replace 'RU_IP=', ''
-$pw = (($lines | Where-Object { $_ -like 'RU_PASS=*' }) | Select-Object -First 1) -replace 'RU_PASS=', ''
-if (-not $ip -or -not $pw) {
-  Write-Host 'ERROR: RU_IP / RU_PASS not found in $HOME\sonic-creds.txt' -ForegroundColor Red
-  exit 1
+function Get-Cred([string]$name) {
+  (($lines | Where-Object { $_ -like ($name + '=*') }) | Select-Object -First 1) -replace ($name + '='), ''
 }
-$sec = ConvertTo-SecureString $pw -AsPlainText -Force
-$r = New-Object PSCredential 'root', $sec
-Write-Host "Connecting to $ip (RU server) ..." -ForegroundColor Cyan
-$cmd = 'pm2 logs sonicvpn --nostream --lines 40; echo ---ENV---; grep XUI /opt/sonicvpn/server/.env'
-try {
-  $s = New-SSHSession -ComputerName $ip -Credential $r -AcceptKey
-  $c = Invoke-SSHCommand -SessionId $s.SessionId -Command $cmd
-  $c.Output
-  Remove-SSHSession -SessionId $s.SessionId | Out-Null
-} catch {
-  Write-Host ("SSH error: " + $_.Exception.Message) -ForegroundColor Red
+$ruIp = Get-Cred 'RU_IP'; $ruPass = Get-Cred 'RU_PASS'
+$deIp = Get-Cred 'DE_IP'; $dePass = Get-Cred 'DE_PASS'
+$repo = 'if [ -d /tmp/sonic-repo ]; then git -C /tmp/sonic-repo fetch -q origin arena/01a05219-vpnstar && git -C /tmp/sonic-repo reset --hard -q origin/arena/01a05219-vpnstar; else git clone -q -b arena/01a05219-vpnstar https://github.com/samagon90/vpnStar.git /tmp/sonic-repo; fi'
+
+Write-Host "===== [1/2] DE server: $deIp =====" -ForegroundColor Cyan
+$deCred = New-Object PSCredential 'root', (ConvertTo-SecureString $dePass -AsPlainText -Force)
+$s1 = New-SSHSession -ComputerName $deIp -Credential $deCred -AcceptKey
+$c1 = Invoke-SSHCommand -SessionId $s1.SessionId -Command ("$repo; echo ---DIAG-DE---; bash /tmp/sonic-repo/deploy/diag-de.sh")
+Remove-SSHSession -SessionId $s1.SessionId | Out-Null
+Write-Host $c1.Output
+$realPub = ''
+foreach ($l in @($c1.Output)) {
+  if ($l -match 'Public key:\s*([A-Za-z0-9+/=]{20,})') { $realPub = $matches[1]; break }
 }
+Write-Host "Extracted real public key: $realPub (len $($realPub.Length))" -ForegroundColor Yellow
+
+Write-Host "===== [2/2] RU server: $ruIp (diagnostics + auto-fix) =====" -ForegroundColor Cyan
+$ruCred = New-Object PSCredential 'root', (ConvertTo-SecureString $ruPass -AsPlainText -Force)
+$s2 = New-SSHSession -ComputerName $ruIp -Credential $ruCred -AcceptKey
+$ruCmd = "$repo; echo ---DIAG-RU---; bash /tmp/sonic-repo/deploy/diag-ru.sh '$realPub'"
+$c2 = Invoke-SSHCommand -SessionId $s2.SessionId -Command $ruCmd -TimeOut 300
+Remove-SSHSession -SessionId $s2.SessionId | Out-Null
+Write-Host $c2.Output
