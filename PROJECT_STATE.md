@@ -118,7 +118,17 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
 11. **Своё Android-приложение «Sonic VPN»**: ребрендинг v2rayNG 2.2.6 (GPLv3) — приложение
     `ru.sonicvpn.app`, наша иконка/цвета; сборка — GitHub Actions (workflow sonicvpn-android),
     APK падает в GitHub Release. Сборка в песочнице НЕПРОВЕРЕНА (нет доступа к Maven/SDK) —
-    запустить workflow вручную и убедиться, что APK выложился
+    запустить workflow вручную и убедиться, что APK выложился.
+    **11a. Режим отладки «Диагностика» в APK** (2026-09-12): `DebugActivity` в drawer-меню —
+    проверки С ТЕЛЕФОНА: T1 прямой TCP/TLS до VPN-сервера (видит блокировку оператора),
+    T2 Reality-проба с SNI профиля, T3 DNS, T4/T5 тра СКВОЗЬ туннель (свой SOCKS5-клиент к
+    локальному core 127.0.0.1:10808, DNS в туннеле): youtube + google/204, T6 публичный
+    `/api/debug/server` RU-сайта; + профиль (pbk/sni/sid/flow), состояние VPN-сервиса,
+    хвост logcat GoLog (ошибки xray-core), вердикт простым языком; «Копировать отчёт» →
+    владелец вставляет в чат. Реализация: overlay-файлы `android/branding/app/src/main/`
+    (DebugActivity.kt + копии MainActivity.kt/AndroidManifest.xml/menu_drawer.xml с правкой
+    + layout/strings) — workflow НЕ меняли (прав их нет). Сайт при этом ЖИВЁТ НА ХОСТИНГЕ
+    (RU VPS, /opt/sonicvpn) — GitHub Pages только для diag-скриптов, НЕ сайт!
 12a. **Диагностика** (`public/debug.html` + `server/src/routes/debug.js` → `GET /api/debug/check`,
     за requireAuth): для владельца-новичка «почему не работает интернет». С ТЕЛЕФОНА: P1 —
     fetch `https://<VPN-сервер>:443/` no-cors (12с таймаут: ok = путь/туннель жив,

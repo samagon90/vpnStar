@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="title_debug">Диагностика</string>
+    <string name="debug_instructions">Проверки выполняются прямо с вашего телефона. Лучший результат — при ВКЛЮЧЁННОМ VPN в приложении.\n\nГотово? Нажмите «Копировать отчёт» и отправьте текст в поддержку — по нему мы найдём причину, почему не работает интернет.</string>
+    <string name="debug_running">Выполняются проверки… (до 1 минуты)</string>
+    <string name="debug_run">Прогнать снова</string>
+    <string name="debug_copy">Копировать отчёт</string>
+    <string name="debug_report_copied">Отчёт скопирован. Отправьте его в поддержку.</string>
+</resources>

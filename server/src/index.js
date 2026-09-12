@@ -49,10 +49,12 @@ app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISO
 
 app.use('/api', authRoutes);
 app.use('/api/admin', adminRoutes); // ДО общего requireAuth: админка входит по своему токену
+// /api/debug ДО requireAuth-роутов: /server — публичный (зовёт режим отладки в APK,
+// без сессии); /check — для страницы /debug.html, auth проверяется внутри роутера (req.user)
+app.use('/api/debug', debugRoutes);
 app.use('/api/payments', requireAuth, payRoutes);
 app.use('/api', requireAuth, accountRoutes);
 app.use('/api/devices', requireAuth, devicesRoutes);
-app.use('/api/debug', requireAuth, debugRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // --- Статика: сайт (работает в РФ без VPN: деплой на Cloudflare Pages / за Cloudflare-прокси) ---

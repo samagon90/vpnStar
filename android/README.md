@@ -49,10 +49,33 @@ android/
     res/mipmap-*/            ic_launcher / _round / _foreground / ic_banner — все плотности
     res/values/colors.xml    палитра Material3: primary #1e6fff, secondary #45b8ff
     res/values/ic_launcher_background.xml  фон адаптивной иконки
+    res/values/strings_debug.xml           строки режима отладки
+    res/layout/activity_debug.xml          экран «Диагностика»
+    res/menu/menu_drawer.xml               drawer + пункт «Диагностика»
+    main/java/com/v2ray/ang/ui/DebugActivity.kt   режим отладки (проверки + отчёт)
+    main/java/com/v2ray/ang/ui/MainActivity.kt   +1 строка: пункт меню → DebugActivity
+    main/AndroidManifest.xml                 + DebugActivity
   v2rayNG/                   ⚠️ локальный клон для разработки (в .gitignore, не коммитится)
 ```
 Текстовые правки (app_name, applicationId, versionName) применяются в workflow через `sed`
 (шаг «Sonic VPN branding (имя, package, версия)») — держать их в sync при смене версии v2rayNG.
+
+## Режим отладки «Диагностика» (DebugActivity)
+
+Экран в drawer-меню («Диагностика»). Запускает с телефона и собирает отчёт для поддержки:
+
+- активный профиль (type/server:port/security/sni/pbk/sid/flow/uuid)
+- T1 прямой TCP до VPN-сервера · T2 прямой TLS с SNI профиля (Reality-ответ)
+- T3 DNS телефона · T4/T5 — тра СКВОЗЬ туннель (SOCKS5 локального core, DNS в туннеле):
+  youtube.com и google/generate_204 · T6 — публичный `/api/debug/server` RU-сайта
+  (сервер проверяет сам себя: TCP/TLS/панель)
+- состояние VPN-сервиса приложения, хвост лога xray-core (logcat, тег GoLog)
+- кнопка «Копировать отчёт» → владелец вставляет текст в чат поддержки
+
+⚠️ Файлы-переопределения (MainActivity.kt, AndroidManifest.xml, menu_drawer.xml) —
+КОПИИ исходников v2rayNG 2.2.6 + наша правка. При смене версии v2rayNG пересоздать их из
+нового клона и заново добавить: DebugActivity-строку в onNavigationItemSelected,
+`<activity .ui.DebugActivity>`, пункт `@+id/debug` в drawer-меню.
 
 ## Сменить иконку
 
