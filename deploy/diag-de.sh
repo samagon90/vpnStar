@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v16: + самопроверка "accepted" в server-логе после локального теста + grep отклонений + tcpdump :443 для сравнения ClientHello
+# v17: + чтение ACCESS-лога (успешные соединения с IP) - разбор внешних попыток
 # (название из ответа GET: {clientReverseTags, inboundTags, outboundTestUrl, xraySetting}).
 set +e
 XP=/usr/local/x-ui/bin/xray-linux-amd64
@@ -151,9 +151,17 @@ echo "2) $D2"
 [ -s /tmp/diag-client.log ] && tail -5 /tmp/diag-client.log
 kill "$CPID" 2>/dev/null
 sleep 1
-echo "=== server-log self-check: 'accepted' в /var/log/x-ui/xray-error.log после локального теста ==="
-echo "accepted-строк всего: $(grep -ac 'accepted' /var/log/x-ui/xray-error.log 2>/dev/null)"
-grep -a "accepted" /var/log/x-ui/xray-error.log 2>/dev/null | tail -6
+echo "=== ACCESS-log (успешные reality-соединения; error-лог их не ведёт) ==="
+ALOG=/var/log/x-ui/xray-access.log
+if [ -s "$ALOG" ]; then
+  echo "--- last 25 access-log lines:"
+  tail -25 "$ALOG"
+  echo "--- external (not 127.0.0.1) attempts, last 15:"
+  grep -av "127.0.0.1" "$ALOG" 2>/dev/null | tail -15
+else
+  echo "(access-log empty or missing: $ALOG)"
+  ls -la /var/log/x-ui/ 2>/dev/null | head -10
+fi
 if command -v tcpdump >/dev/null 2>&1; then
   pkill -f "tcpdump.*de443" 2>/dev/null; sleep 0.5
   nohup tcpdump -i any -s 0 -w /tmp/de443.pcap 'tcp port 443' >/dev/null 2>&1 &
