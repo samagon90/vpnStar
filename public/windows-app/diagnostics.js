@@ -288,7 +288,7 @@ async function runDiagnostics(profile, opts = {}) {
     out.t4 = await httpsGetViaSocks('www.youtube.com', 443, '/', 12000, sHost, sPort);
     out.t5 = await httpsGetViaSocks('www.google.com', 443, '/generate_204', 10000, sHost, sPort);
   }
-  out.t6 = await siteStatus(8000);
+  out.t6 = await siteStatus(45000);
   out.ms = Date.now() - t0;
   return out;
 }

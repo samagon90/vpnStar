@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v13.4: DNS-фикс через шаблон xray. Форм-поле сохранения = xraySetting
+# v14: DNS-фикс + debug-лог xray (error-файл) + egress-тесты DE + хвост логов внешних попыток
 # (название из ответа GET: {clientReverseTags, inboundTags, outboundTestUrl, xraySetting}).
 set +e
 XP=/usr/local/x-ui/bin/xray-linux-amd64
@@ -23,6 +23,14 @@ fetch_wrapper() { # печатает wrapper-объект (json) в stdout
     -X POST "$BASE/panel/api/xray/" -d '{}' | jq -c '.obj | if type=="string" then fromjson else . end' 2>/dev/null
 }
 
+echo "=== xray error-лог (внешние попытки с прошлого прогона) ==="
+if [ -s /tmp/xray-error.log ]; then
+  tail -40 /tmp/xray-error.log
+else
+  echo "(пусто — внешних попыток не было или лог ещё не накручен)"
+  ls -la /usr/local/x-ui/log/ 2>/dev/null | head -8
+fi
+
 csrf_get
 echo "=== read xray template ==="
 W=$(fetch_wrapper)
@@ -44,7 +52,8 @@ echo "config keys: $(jq -c 'keys' /tmp/xset.json)"
 echo "dns now: $(jq -c '.dns // "ABSENT"' /tmp/xset.json)"
 
 jq '
-  .dns = {"servers": ["1.1.1.1", "8.8.8.8"]}
+  .log = {"loglevel": "debug", "error": "/tmp/xray-error.log"}
+  | .dns = {"servers": ["1.1.1.1", "8.8.8.8"]}
   | .outbounds = ((.outbounds // []) | map(select(.tag != "dns-out"))) + [{"tag":"dns-out","protocol":"dns"}]
   | .routing = ((.routing // {"domainStrategy":"AsIs","rules":[]})
       | .rules = ([{"network":"dns","outboundTag":"dns-out","type":"field"}]
@@ -86,6 +95,10 @@ ss -tlnp 2>/dev/null | grep -E ':(443|20461) ' | head -3
 echo "live config dns: $(jq -c '.dns // "ABSENT IN LIVE CONFIG"' /usr/local/x-ui/bin/config.json)"
 PROBE=$(curl -sk --resolve www.microsoft.com:443:127.0.0.1 --max-time 10 https://www.microsoft.com/ -o /dev/null -w '%{http_code}')
 echo "reality probe: $PROBE"
+echo "live log config: $(jq -c '.log // "ABSENT"' /usr/local/x-ui/bin/config.json 2>/dev/null)"
+echo "=== DE egress (fallback-путь Reality: DE -> реальные сайты) ==="
+curl -sk --max-time 12 -o /dev/null -w "DE->amd.com: http=%{http_code} %{time_total}s\n" "https://amd.com/"
+curl -sk --max-time 12 -o /dev/null -w "DE->www.microsoft.com: http=%{http_code} %{time_total}s\n" "https://www.microsoft.com/"
 
 echo "=== DNS-over-tunnel test (socks5h = DNS через туннель) ==="
 LIST=$(json_get /panel/api/inbounds/list)

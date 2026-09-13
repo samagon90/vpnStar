@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v17: ДЕПЛОЙ + ПРЕД-ЧЕК прямого пути RU->DE:443 (TCP/TLS) + xray-клиент с debug-логом (git + единый pm2 на :80, correct cwd) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
+# v18: ДЕПЛОЙ + пред-чеки RU->DE:443 (TCP/TLS/MTU) + xray-клиент с debug-логом + ПРЕД-ЧЕК прямого пути RU->DE:443 (TCP/TLS) + xray-клиент с debug-логом (git + единый pm2 на :80, correct cwd) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
 #      РЕАЛЬНАЯ ссылка сайта -> xray-клиент на RU -> ВНЕШНИЙ IP DE:443 ->
 #      веб + DNS через туннель + какой IP видит интернет.
 set +e
@@ -67,6 +67,11 @@ echo "parsed: uuid=$UUUID host=$HOST port=$PORT pbk_len=${#PBK} sni=$SNI sid=$SI
 echo "=== 2a) прямой путь RU -> DE:443 (до xray: TCP и TLS) ==="
 timeout 8 bash -c "echo > /dev/tcp/$DE_IP/443" 2>/dev/null && echo "TCP RU->DE:443: OK" || echo "TCP RU->DE:443: FAIL (таймаут/блок)"
 curl -sk --max-time 12 --resolve amd.com:443:$DE_IP -o /dev/null -w "TLS+HTTP RU->DE:443 (sni amd.com): http=%{http_code} %{time_total}s (ожидаем 200/301/403 = жив, 000 = мёртв)\n" "https://amd.com/" 2>&1
+echo
+echo "=== 2b) MTU-проба пути RU->DE (ICMP c DF; если ВСЕ FAIL - ICMP заблокирован, выводов не делать) ==="
+for sz in 1472 1400 1200 1000 548; do
+  if ping -c 1 -W 2 -M do -s $sz $DE_IP >/dev/null 2>&1; then echo "  ping DF payload=$sz: OK (MTU пути >= $((sz+28)))"; else echo "  ping DF payload=$sz: FAIL"; fi
+done
 echo
 
 echo "=== 2) xray-клиент v26.7.28 (та же версия, что на DE) ==="

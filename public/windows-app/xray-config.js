@@ -30,7 +30,7 @@ function buildXrayConfig(link, opts = {}) {
   if (!p.pbk) throw new Error('В ссылке нет pbk= (публичный ключ) — проверьте ссылку из Кабинета');
 
   const cfg = {
-    log: { loglevel: 'warning' },
+    log: { loglevel: 'debug' },
     inbounds: [
       {
         tag: 'socks',

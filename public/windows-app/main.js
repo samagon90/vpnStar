@@ -233,7 +233,7 @@ async function runDiag() {
     appVersion: app.getVersion ? app.getVersion() : '?',
     mode: 'proxy ' + SOCKS_PORT + '/' + HTTP_PORT,
     xrayState: xrayStateText(),
-    logTail: xrayLogTail.trim() ? xrayLogTail.trim().split('\n').slice(-12).join('\n') : '(пусто)',
+    logTail: xrayLogTail.trim() ? xrayLogTail.trim().split('\n').slice(-20).join('\n') : '(пусто)',
   });
   return { diag: d, report };
 }
