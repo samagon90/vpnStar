@@ -103,6 +103,7 @@ kill -0 "$CPID" 2>/dev/null || { echo "EXT_FAIL: xray-клиент не стар
 echo "xray-клиент работает: внешний путь $HOST:$PORT (как телефон)"
 
 echo "=== 3) тесты через туннель ==="
+echo "RU tests start: $(date -u '+%F %T UTC') (ищи эти попытки в DE-логе)"
 T1=$(curl -s --max-time 20 -x http://127.0.0.1:10080 http://example.com -o /dev/null -w 'example (dns локальный): %{http_code} %{time_total}s')
 T2=$(curl -sk --max-time 20 -x http://127.0.0.1:10080 https://www.youtube.com -o /dev/null -w 'youtube (dns локальный): %{http_code} %{time_total}s')
 T3=$(curl -s --max-time 20 -x socks5h://127.0.0.1:10080 http://example.com -o /dev/null -w 'example (dns СКВОЗЬ туннель): %{http_code} %{time_total}s')
@@ -114,6 +115,7 @@ echo "3) $T3"
 echo "4) $T4"
 echo "5) какой IP видит интернет (должен быть $DE_IP): $(printf '%s' "$T5" | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1)"
 [ -s /tmp/ext-client.log ] && { echo "--- log клиента (debug):"; head -30 /tmp/ext-client.log; }
+echo "RU tests end: $(date -u '+%F %T UTC')"
 kill "$CPID" 2>/dev/null
 
 AT=$(grep '^ADMIN_TOKEN=' /opt/sonicvpn/server/.env | cut -d= -f2)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v14: DNS-фикс + debug-лог xray (error-файл) + egress-тесты DE + хвост логов внешних попыток
+# v15: DNS-фикс + debug-лог xray (/var/log/x-ui/xray-error.log) + egress DE + РАЗБОР ВНЕШНИХ ПОПЫТОК (RU VPS ip) + чистка diagtest-*
 # (название из ответа GET: {clientReverseTags, inboundTags, outboundTestUrl, xraySetting}).
 set +e
 XP=/usr/local/x-ui/bin/xray-linux-amd64
@@ -23,12 +23,21 @@ fetch_wrapper() { # печатает wrapper-объект (json) в stdout
     -X POST "$BASE/panel/api/xray/" -d '{}' | jq -c '.obj | if type=="string" then fromjson else . end' 2>/dev/null
 }
 
-echo "=== xray error-лог (внешние попытки с прошлого прогона) ==="
-if [ -s /tmp/xray-error.log ]; then
-  tail -40 /tmp/xray-error.log
+echo "=== DE xray log (внешние попытки с прошлого прогона) ==="
+echo "DE now: $(date -u '+%F %T UTC') (таймстемпы в логе xray — локальное время DE)"
+XLOG=/var/log/x-ui/xray-error.log
+if [ -s "$XLOG" ]; then
+  echo "--- все 'accepted' (каждое вошедшее соединение):"
+  grep -a "accepted" "$XLOG" | tail -30
+  echo "--- RU VPS 87.249.49.204:"
+  grep -acF "87.249.49.204" "$XLOG" | xargs echo "строк про RU VPS:"
+  grep -aF "87.249.49.204" "$XLOG" | tail -25
+  echo "--- хвост лога (50):"
+  tail -50 "$XLOG"
 else
-  echo "(пусто — внешних попыток не было или лог ещё не накручен)"
-  ls -la /usr/local/x-ui/log/ 2>/dev/null | head -8
+  echo "(лог пуст: $XLOG)"
+  ls -la /var/log/x-ui/ 2>/dev/null | head -10
+  [ -s /tmp/xray-error.log ] && tail -20 /tmp/xray-error.log
 fi
 
 csrf_get
@@ -100,6 +109,12 @@ echo "=== DE egress (fallback-путь Reality: DE -> реальные сайт�
 curl -sk --max-time 12 -o /dev/null -w "DE->amd.com: http=%{http_code} %{time_total}s\n" "https://amd.com/"
 curl -sk --max-time 12 -o /dev/null -w "DE->www.microsoft.com: http=%{http_code} %{time_total}s\n" "https://www.microsoft.com/"
 
+echo "=== cleanup старых diagtest-* (с прошлых прогонов) ==="
+OLDCLIENTS=$(json_get /panel/api/clients/list 2>/dev/null | jq -r '(.obj | if type=="array" then . else (.rows // []) end)[]? | .email // empty' 2>/dev/null | grep '^diagtest-')
+for e in $OLDCLIENTS; do
+  curl -ks -b "$JAR" -H "X-CSRF-Token: $CSRF" -X DELETE "$BASE/panel/api/clients/del/$e" >/dev/null 2>&1 && echo "удалён старый: $e"
+done
+
 echo "=== DNS-over-tunnel test (socks5h = DNS через туннель) ==="
 LIST=$(json_get /panel/api/inbounds/list)
 PUB=$(printf '%s' "$LIST" | jq -r '(.obj | if type=="array" then . else (.rows // []) end) | [.[]? | select(.protocol=="vless")] | .[0] | (.streamSettings | if type=="object" then . else (try fromjson catch {}) end).realitySettings.publicKey // empty')
@@ -133,7 +148,12 @@ echo "1) $D1"
 echo "2) $D2"
 [ -s /tmp/diag-client.log ] && tail -5 /tmp/diag-client.log
 kill "$CPID" 2>/dev/null
-curl -ks -b "$JAR" -H "X-CSRF-Token: $CSRF" -X DELETE "$BASE/panel/api/clients/del/$REF" | grep -q '"success":true' && echo "test client deleted" || echo "test client $REF остался"
+DEL1=$(curl -ks -b "$JAR" -H "X-CSRF-Token: $CSRF" -X DELETE "$BASE/panel/api/clients/del/$REF")
+if printf '%s' "$DEL1" | grep -q '"success":true'; then echo "test client deleted"
+else sleep 2
+ DEL2=$(curl -ks -b "$JAR" -H "X-CSRF-Token: $CSRF" -X DELETE "$BASE/panel/api/clients/del/$REF")
+ printf '%s' "$DEL2" | grep -q '"success":true' && echo "test client deleted (2-я попытка)" || { echo "test client $REF остался: $(printf '%s' "$DEL2" | head -c 120)"; }
+fi
 
 case "$D1$D2" in
   *200*) echo "DNS_FIXED: DNS через туннель работает" ;;
