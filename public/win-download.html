@@ -73,8 +73,10 @@ btn.addEventListener('click', async () => {
   try {
     const res = await fetch('../windows/build-sonicvpn.bat', { cache: 'no-store' });
     if (!res.ok) throw new Error('http ' + res.status);
-    const text = await res.text();
-    if (!text.includes('sonicvpn-electron.zip') && !text.toLowerCase().includes('electron')) throw new Error('bad content');
+    const raw = new TextDecoder('utf-8').decode(new Uint8Array(await res.arrayBuffer()));
+    if (!raw.includes('sonicvpn-electron.zip') && !raw.toLowerCase().includes('electron')) throw new Error('bad content');
+    // bat обязан быть CRLF: cmd.exe с LF-переносами ломает парсинг
+    const text = raw.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n');
     const blob = new Blob([text], { type: 'application/octet-stream' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

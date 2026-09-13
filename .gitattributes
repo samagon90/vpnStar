@@ -1,0 +1,6 @@
+# Windows-батники: байты 1-в-1 (CRLF), без любой нормализации git'ом.
+# Иначе cmd.exe ломает парсинг (LF) или молотит кириллицу (codepage).
+*.bat -text
+*.ps1 -text
+# Shell-скрипты (DE/RU) — только LF
+*.sh text eol=lf

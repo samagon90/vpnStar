@@ -1,7 +1,6 @@
 @echo off
-chcp 65001 >nul
 setlocal EnableExtensions
-title Sonic VPN for Windows - сборка
+title Sonic VPN for Windows - setup
 
 set "BASE=%USERPROFILE%\SonicVPN"
 set "PAGE=https://samagon90.github.io/vpnStar"
@@ -10,20 +9,19 @@ set "TMPZ=%TEMP%\sonicvpn-electron.zip"
 
 echo ============================================================
 echo   Sonic VPN for Windows
-echo   Папка приложения: %BASE%
+echo   App folder: %BASE%
 echo ============================================================
 echo.
 
 if exist "%BASE%\SonicVPN.exe" (
-  echo Обнаружена старая версия - переустанавливаем...
+  echo Old version found - reinstalling...
   rmdir /s /q "%BASE%" 2>nul
 )
 
 if not exist "%BASE%" mkdir "%BASE%"
 if not exist "%BASE%\resources" mkdir "%BASE%\resources"
 
-rem ---- [1/5] файлы приложения (9 файлов, ~350 КБ) ----
-echo [1/5] Скачиваем файлы приложения (мало)...
+echo [1/5] Downloading app files (small)...
 set "APPDIR=%BASE%\resources\app"
 if not exist "%APPDIR%\renderer\js" mkdir "%APPDIR%\renderer\js"
 call :fetch "%APPDIR%\package.json" "app/package.json"
@@ -37,75 +35,75 @@ call :fetch "%APPDIR%\renderer\ui.js" "app/renderer/ui.js"
 call :fetch "%APPDIR%\renderer\js\jsQR.js" "app/renderer/js/jsQR.js"
 if not exist "%APPDIR%\main.js" (
   echo.
-  echo ОШИБКА: не удалось скачать файлы приложения. Проверь интернет.
+  echo ERROR: could not download app files. Check internet.
   pause
   exit /b 1
 )
 
-rem ---- [2/5] Electron 144 МБ ----
-echo [2/5] Скачиваем Electron (144 МБ)...
-echo       Может быть 3-15 минут. Прогресс показан ниже. Не закрывай окно.
+if exist "%BASE%\electron.exe" goto :after-electron
+echo [2/5] Downloading Electron (144 MB)...
+echo       Can take 3-15 minutes. Progress below. Do not close window.
 echo.
 curl -fL --retry 2 -o "%TMPZ%" "%ELECTRON_URL%"
 if errorlevel 1 (
   echo.
-  echo curl не справился - пробуем стандартным PowerShell-скачивателем...
+  echo curl failed - trying PowerShell downloader...
   powershell -NoProfile -Command "iwr '%ELECTRON_URL%' -OutFile '%TMPZ%' -UseBasicParsing"
 )
 if not exist "%TMPZ%" (
   echo.
-  echo ОШИБКА: не удалось скачать Electron. Проверь интернет/VPN.
+  echo ERROR: could not download Electron. Check internet/VPN.
   pause
   exit /b 1
 )
-
-rem ---- [3/5] распаковка Electron ----
-echo [3/5] Распаковываем Electron...
+echo [3/5] Unpacking Electron...
 tar -xf "%TMPZ%" -C "%BASE%"
 if errorlevel 1 (
-  echo tar не справился - пробуем PowerShell...
+  echo tar failed - trying PowerShell...
   powershell -NoProfile -Command "Expand-Archive -LiteralPath '%TMPZ%' -DestinationPath '%BASE%' -Force"
 )
 if not exist "%BASE%\electron.exe" (
   echo.
-  echo ОШИБКА: electron.exe не найден после распаковки.
+  echo ERROR: electron.exe not found after unpack.
   pause
   exit /b 1
 )
 del "%TMPZ%" 2>nul
+goto :check-app
+:after-electron
+echo [2/5]+[3/5] Electron already unpacked - skipping download.
 
-rem ---- [4/5] проверка файлов приложения ----
-echo [4/5] Проверяем файлы приложения...
+:check-app
+echo [4/5] Checking app files...
 if not exist "%BASE%\resources\app\main.js" (
   echo.
-  echo ОШИБКА: resources\app\main.js не найден.
+  echo ERROR: resources\app\main.js not found.
   pause
   exit /b 1
 )
 if not exist "%BASE%\resources\app\renderer\js\jsQR.js" (
   echo.
-  echo ОШИБКА: не все файлы приложения на месте.
+  echo ERROR: app files are not complete.
   pause
   exit /b 1
 )
 
-rem ---- [5/5] переименование + ярлык ----
-echo [5/5] Создаю ярлык на рабочем столе...
+echo [5/5] Creating desktop shortcut...
 if exist "%BASE%\electron.exe" move /y "%BASE%\electron.exe" "%BASE%\SonicVPN.exe" >nul
 powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'SonicVPN.lnk')); $sc.TargetPath = '%BASE%\SonicVPN.exe'; $sc.WorkingDirectory = '%BASE%'; $sc.Description = 'Sonic VPN for Windows'; $sc.Save()"
 
 echo.
 echo ============================================================
-echo   ГОТОВО!
-echo   Ярлык "SonicVPN" на рабочем столе. Двойной клик - и всё.
-echo   Если Windows покажет предупреждение: "Подробнее" - "Запуск".
-echo   При первом запуске приложение само скачает ядро xray (~40 МБ).
+echo   DONE!
+echo   Shortcut "SonicVPN" is on your desktop. Double-click it.
+echo   If Windows warns: More info - Run.
+echo   First start downloads xray core (~40 MB) by itself.
 echo ============================================================
 pause
 endlocal
 exit /b 0
 
-rem ---------- subroutine: скачать один файл (curl, фолбэк iwr) ----------
+rem ---------- subroutine: download one file (curl, fallback iwr) ----------
 :fetch
 set "FDEST=%~1"
 set "FURL=%PAGE%/windows/%~2"
@@ -114,5 +112,5 @@ if errorlevel 1 (
   if exist "%FDEST%" del "%FDEST%" 2>nul
   powershell -NoProfile -Command "iwr '%FURL%' -OutFile '%FDEST%' -UseBasicParsing" 2>nul
 )
-if not exist "%FDEST%" echo   ! не скачалось: %~2
+if not exist "%FDEST%" echo   ! not downloaded: %~2
 exit /b 0
