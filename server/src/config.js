@@ -29,6 +29,7 @@ export const cfg = {
   smtp_user: env('SMTP_USER'),
   smtp_pass: env('SMTP_PASS'),
 
+  reality_fp: env('REALITY_FP', 'chrome'), // uTLS-отпечаток в профиле (chrome=крупный, safari/ios/android=маленький)
   xui_base: env('XUI_BASE'),
   xui_user: env('XUI_USER'),
   xui_password: env('XUI_PASSWORD'),

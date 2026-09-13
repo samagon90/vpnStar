@@ -29,7 +29,7 @@ function mockProfileFor(user, device) {
   const port = 443;
   const sni = 'www.microsoft.com';
   const pbk = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8='; // демонстрационный (валидный X25519-формат, реальную пару даёт 3x-ui)
-  const fp = 'chrome';
+  const fp = cfg.reality_fp || 'chrome';
   const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
   const link =
     `vless://${uuid}@${host}:${port}?security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp#${remark}`;

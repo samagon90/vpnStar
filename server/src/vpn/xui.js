@@ -190,9 +190,10 @@ class Xui {
       sid ? `sid=${encodeURIComponent(sid)}` : '',
       spx ? `spx=${encodeURIComponent(spx)}` : '',
     ].filter(Boolean).join('&');
+    const fp = process.env.REALITY_FP || 'chrome';
     const link =
-      `vless://${uuid}@${host}:${port}?security=reality&sni=${sni}&pbk=${pbk}&fp=chrome&flow=xtls-rprx-vision&type=tcp${extra ? `&${extra}` : ''}#${remark}`;
-    const realityOpts = { publicKey: pbk, serverName: sni, fingerprint: 'chrome' };
+      `vless://${uuid}@${host}:${port}?security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&flow=xtls-rprx-vision&type=tcp${extra ? `&${extra}` : ''}#${remark}`;
+    const realityOpts = { publicKey: pbk, serverName: sni, fingerprint: fp };
     if (sid) realityOpts.shortId = sid;
     if (spx) realityOpts.spiderX = spx;
     const share = { vless: [{ uuid, address: host, port: String(port), security: 'reality', network: 'tcp', flow: 'xtls-rprx-vision', realityOpts }] };
