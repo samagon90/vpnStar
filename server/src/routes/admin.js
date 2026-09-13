@@ -4,6 +4,7 @@ import { cfg } from '../config.js';
 import { db, q, nowISO, addDays, addMonths, daysLeft } from '../db.js';
 import { hashPassword, randomRefCode, money } from '../util.js';
 import { provider } from '../vpn/provider.js';
+import { xui } from '../vpn/xui.js';
 
 const r = Router();
 
@@ -25,6 +26,53 @@ function requireAdmin(req, res, next) {
 r.use(requireAdmin);
 
 const count = (sql, ...args) => Number(db.prepare(sql).get(...args).c || 0);
+
+// --- Блокировать/разблокировать устройство панели (по 3x-ui email/ref) ---
+r.post('/client/toggle', async (req, res) => {
+  const email = String(req.body?.email || '').trim();
+  if (!email) return res.status(400).json({ error: 'email пустой' });
+  const enable = !!req.body?.enable;
+  try {
+    await xui.setClientEnabled(email, enable);
+    const row = db.prepare('SELECT id FROM devices WHERE ref_id = ?').get(email);
+    if (row) db.prepare('UPDATE devices SET enabled = ? WHERE id = ?').run(enable ? 1 : 0, row.id);
+    res.json({ ok: true, email, enable });
+  } catch (e) {
+    res.status(502).json({ error: 'Не удалось обновить клиента панели: ' + e.message });
+  }
+});
+
+// --- Удалить устройство панели (по email/ref) + освободить слот в БД ---
+r.delete('/client/:email', async (req, res) => {
+  const email = String(req.params.email || '').trim();
+  if (!email) return res.status(400).json({ error: 'email пустой' });
+  try {
+    await xui.delClient(email);
+    const row = db.prepare('SELECT * FROM devices WHERE ref_id = ?').get(email);
+    if (row) q.deleteDevice(row.id);
+    res.json({ ok: true, email });
+  } catch (e) {
+    res.status(502).json({ error: 'Не удалось удалить клиента панели: ' + e.message });
+  }
+});
+
+// --- Активные подключения клиентов (из панели 3x-ui, онлайн-статистика) ---
+r.get('/online', async (req, res) => {
+  if (!cfg.xui_base) return res.json({ online: [] });
+  try {
+    const stats = await xui.clientStats();
+    // last_ip != '' → у 3x-ui v3 не всегда заполняется; считаем «активными» тех,
+    // у кого есть трафик за всё время и enable=1. Реально-онлайн показывает панель,
+    // мы отдаём отсортированными по трафику (порт 443 = VLESS+Reality).
+    const online = stats
+      .filter((s) => s.enable)
+      .sort((a, b) => b.total - a.total)
+      .map((s) => s);
+    res.json({ online });
+  } catch (e) {
+    res.status(502).json({ error: 'Не удалось получить данные панели: ' + e.message });
+  }
+});
 
 // --- Сводка ---
 r.get('/stats', (req, res) => {
@@ -73,7 +121,8 @@ r.get('/users', (req, res) => {
 r.post('/users', async (req, res) => {
   const u = String((req.body || {}).username || '').trim().toLowerCase();
   const pw = String((req.body || {}).password || '');
-  const months = [1, 3, 6].includes(Number(req.body?.months)) ? Number(req.body.months) : 3;
+  // months: 1 | 3 | 6 | 999 (999 = безлимитный подарок, ~83 года)
+  const months = [1, 3, 6, 999].includes(Number(req.body?.months)) ? Number(req.body.months) : 3;
   if (!/^[a-z0-9_]{3,20}$/.test(u)) return res.status(400).json({ error: 'Логин: 3–20 символов, строчные a-z, цифры, _' });
   if (q.userByName(u)) return res.status(409).json({ error: 'Такой логин уже есть' });
   if (pw.length < 6) return res.status(400).json({ error: 'Пароль: минимум 6 символов' });

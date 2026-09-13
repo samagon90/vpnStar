@@ -182,6 +182,7 @@
             : '<span class="pill off">заблокировано</span>'}</div>
           <span class="m" style="font-size:.85rem">добавлено ${d.created_str}</span>
           <div class="dev-actions">
+            <button class="btn btn-ghost btn-sm dev-link-btn">📋 Ссылка</button>
             <button class="btn btn-ghost btn-sm dev-qr-btn">📷 QR</button>
             <button class="btn btn-ghost btn-sm dev-toggle">${d.enabled ? '🚫 Заблокировать' : '✅ Включить'}</button>
             <button class="btn btn-ghost btn-sm dev-del">🗑 Удалить</button>
@@ -191,6 +192,15 @@
 
       list.querySelectorAll('.dev-item').forEach((el) => {
         const id = Number(el.dataset.id);
+        el.querySelector('.dev-link-btn').onclick = async () => {
+          const d = DEVS.devices.find((x) => x.id === id);
+          try {
+            const r = await API.get(`/api/devices/${id}`);
+            if (!r.profile || !r.profile.vless_link) throw new Error('Профиль недоступен');
+            await navigator.clipboard.writeText(r.profile.vless_link);
+            toast(`Ссылка «${d.name}» скопирована`);
+          } catch (e) { toast(e.message || 'Не получилось скопировать'); }
+        };
         el.querySelector('.dev-qr-btn').onclick = () => toggleQr(el, id);
         el.querySelector('.dev-toggle').onclick = async () => {
           const d = DEVS.devices.find((x) => x.id === id);

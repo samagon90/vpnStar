@@ -102,6 +102,25 @@ class Xui {
     return j.obj;
   }
 
+  /** Список клиентов с трафиком из панели (online/total). */
+  async clientStats() {
+    const list = await this.api('/panel/api/inbounds/list');
+    const rows = Array.isArray(list) ? list : (list?.rows || []);
+    const vless = rows.find((r) => r.protocol === 'vless' && String(r.streamSettings || '').includes('realitySettings'))
+      || rows.find((r) => r.protocol === 'vless');
+    if (!vless) return [];
+    const stats = vless.clientStats || [];
+    return stats.map((s) => ({
+      email: s.email,
+      up: Number(s.up || 0),
+      down: Number(s.down || 0),
+      total: Number(s.up || 0) + Number(s.down || 0),
+      last_ip: s.last_ip || '',
+      enable: !!s.enable,
+      limit_ip: s.limit_ip ?? -1,
+    }));
+  }
+
   async inboundId() {
     // первый VLESS inbound с Reality (создаётся deploy/xui-setup.sh)
     const list = await this.api('/panel/api/inbounds/list');

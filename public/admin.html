@@ -92,7 +92,7 @@ tr:hover td{background:#131c30}
       <div><label>Логин</label><input id="gUser" placeholder="friend1" style="width:150px"><button class="btn ghost" onclick="ADMIN.rand('gUser')" title="Случайный логин">🎲</button></div>
       <div><label>Пароль</label><input id="gPass" placeholder="минимум 6 символов" style="width:170px"><button class="btn ghost" onclick="ADMIN.rand('gPass')" title="Случайный пароль">🎲</button></div>
       <div><label>Срок</label>
-        <select id="gMonths"><option value="1">1 месяц</option><option value="3" selected>3 месяца</option><option value="6">6 месяцев</option></select>
+        <select id="gMonths"><option value="1">1 месяц</option><option value="3" selected>3 месяца</option><option value="6">6 месяцев</option><option value="999">♾️ Безлимит (подарок)</option></select>
       </div>
       <button class="btn" id="gBtn" onclick="ADMIN.genKey()">Сгенерировать</button>
     </div>
@@ -108,6 +108,18 @@ tr:hover td{background:#131c30}
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
+  </div>
+
+  <div class="panel">
+    <h2>🔌 Активные подключения <span class="mut" style="font-weight:400">(3x-ui: клиенты с трафиком)</span><button class="btn ghost" style="padding:4px 10px;font-size:12px" onclick="ADMIN.loadOnline()">Обновить</button></h2>
+    <p class="mut" style="margin-bottom:10px;font-size:12.5px">Относится к клиентам панели; загружено из /panel/api/inbounds/list. Точный «живой» статус каждого устройства панель отдаёт только в своём UI.</p>
+    <table>
+      <thead><tr><th>Устройство (email)</th><th>Включено</th><th>limitIp</th><th>Трафик</th><th></th></tr></thead>
+      <tbody id="online-body"><tr><td colspan="5" class="mut">Загрузите список →</td></tr></tbody>
+    </table>
+    <div class="act" style="margin-top:10px">
+      <button class="btn ghost" onclick="ADMIN.loadOnline(true)">🔍 Показать все клиенты панели (не только активные)</button>
+    </div>
   </div>
 </div>
 </div>
@@ -198,6 +210,54 @@ const ADMIN = {
 
   _t: null,
   debounce() { clearTimeout(this._t); this._t = setTimeout(() => this.loadUsers(), 350); },
+
+  fmtBytes(b) {
+    const n = Number(b) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+    return (n / 1073741824).toFixed(2) + ' GB';
+  },
+
+  async loadOnline(all = false) {
+    const tb = document.getElementById('online-body');
+    tb.innerHTML = '<tr><td colspan="5" class="mut">Загружаю…</td></tr>';
+    try {
+      const d = await this.api('/online');
+      const list = all ? d.online : d.online.filter((s) => s.total > 0);
+      if (!list.length) { tb.innerHTML = '<tr><td colspan="5" class="mut">Нет активных клиентов</td></tr>'; return; }
+      tb.innerHTML = list.map((s) => `
+        <tr>
+          <td><b>${this.esc(s.email)}</b><br><span class="mut" style="font-size:11.5px">${this.esc(s.last_ip || 'IP не показан')}</span></td>
+          <td>${s.enable === false ? '<span class="pill off">выкл</span>' : '<span class="pill plan">вкл</span>'}</td>
+          <td>${s.limit_ip < 0 ? '—' : s.limit_ip}</td>
+          <td>${this.fmtBytes(s.total)}</td>
+          <td><div class="act">
+            <button onclick="ADMIN.toggleClient('${this.esc(s.email)}', ${s.enable !== false})" title="${s.enable !== false ? 'Заблокировать устройство' : 'Разблокировать устройство'}">${s.enable !== false ? '🚫' : '✅'}</button>
+            <button class="del" onclick="ADMIN.delClient('${this.esc(s.email)}')" title="Удалить устройство из панели">✕</button>
+          </div></td>
+        </tr>`).join('');
+    } catch (e) {
+      tb.innerHTML = '<tr><td colspan="5" class="err">' + this.esc(e.message) + '</td></tr>';
+    }
+  },
+
+  async toggleClient(email, isEnabled) {
+    try {
+      await this.api('/client/toggle', { method: 'POST', body: JSON.stringify({ email, enable: !isEnabled }) });
+      this.toast((isEnabled ? 'Заблокировано' : 'Включено') + ' ✓');
+      this.loadOnline(true);
+    } catch (e) { this.toast(e.message); }
+  },
+
+  async delClient(email) {
+    if (!confirm('Удалить устройство «' + email + '» из панели и освободить слот?')) return;
+    try {
+      await this.api('/client/' + encodeURIComponent(email), { method: 'DELETE' });
+      this.toast('Удалено ✓');
+      this.loadOnline(true);
+    } catch (e) { this.toast(e.message); }
+  },
 
   async loadUsers() {
     const s = document.getElementById('q').value.trim();
