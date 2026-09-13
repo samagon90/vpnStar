@@ -8,7 +8,8 @@
 //            они уже есть в профиле клиента), никаких личных данных.
 import { Router } from 'express';
 import net from 'node:net';
-import tls from 'node:tls';
+
+import https from 'node:https';
 import { xui } from '../vpn/xui.js';
 
 const router = Router();
@@ -33,25 +34,33 @@ function tcpProbe(host, port, timeoutMs = 5000) {
 }
 
 // TLS-проба с SNI реальнового сайта: если Reality жив — ответит ИСТИННЫЙ сайт
-// (200/301/403), если туннель/сервер мёртв — 000 (timeout/reset/ssl-ошибка)
+// (200/301/403), если туннель/сервер мёртв — 000 (timeout/reset/ssl-ошибка).
+// ВАЖНО: https.request (а не голый tls.connect): реально шлём GET и ждём ответ.
+// Голый сокет без HTTP-запроса не даёт ни 'response', ни таймаута после end() —
+// промис зависал вечно (найден по pm2-логам 13.09).
 function tlsProbe(host, port, serverName, timeoutMs = 10000) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     let settled = false;
+    let req;
     const done = (code, extra = '') => {
       if (settled) return;
       settled = true;
-      try { req.end(); } catch { /* ignore */ }
-      req.destroy();
+      try { req.destroy(); } catch { /* ignore */ }
       resolve(`${code} ${Date.now() - t0}ms ${extra}`.trim());
     };
-    const req = tls.connect(
-      { host, port, servername: serverName, rejectUnauthorized: false },
-      () => req.end(),
+    req = https.request(
+      {
+        host, port, servername: serverName,
+        rejectUnauthorized: false,
+        method: 'GET', path: '/',
+        headers: { 'User-Agent': 'sonicvpn-diagnostics/1.0', Host: serverName },
+      },
+      (res) => done(String(res.statusCode)),
     );
     req.setTimeout(timeoutMs, () => done('000', 'timeout'));
-    req.on('response', (res) => done(String(res.statusCode)));
     req.on('error', (e) => done('000', e.code || e.message));
+    req.end();
   });
 }
 
