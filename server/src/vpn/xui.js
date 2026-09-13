@@ -190,7 +190,7 @@ class Xui {
       sid ? `sid=${encodeURIComponent(sid)}` : '',
       spx ? `spx=${encodeURIComponent(spx)}` : '',
     ].filter(Boolean).join('&');
-    const fp = process.env.REALITY_FP || 'chrome';
+    const fp = process.env.REALITY_FP || 'safari';
     const link =
       `vless://${uuid}@${host}:${port}?security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&flow=xtls-rprx-vision&type=tcp${extra ? `&${extra}` : ''}#${remark}`;
     const realityOpts = { publicKey: pbk, serverName: sni, fingerprint: fp };

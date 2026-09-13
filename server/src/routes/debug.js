@@ -56,6 +56,8 @@ function tlsProbe(host, port, serverName, timeoutMs = 10000) {
 }
 
 async function runServerChecks() {
+  const t0 = Date.now();
+  const lg = (m) => console.log(`[debug/server] ${m} (${Date.now() - t0}ms)`);
   const out = {
     time: new Date().toISOString(),
     from: 'ru-server',
@@ -66,21 +68,31 @@ async function runServerChecks() {
   }
 
   // 1) TCP до порта VPN
+  lg('tcp probe start');
   out.tcp = await tcpProbe(DE_HOST, DE_PORT, 5000);
+  lg(`tcp: ${out.tcp}`);
 
   // 2) Параметры инбоунда из панели (чтобы сравнить с профилем пользователя)
   try {
+    lg('panel inboundParams start');
     const p = await Promise.race([
       xui.inboundParams(),
       new Promise((_, rej) => setTimeout(() => rej(new Error('панель: timeout 15s')), 15000)),
     ]);
+    lg('panel ok');
     out.panel = { port: p.port, sni: p.sni, pbk: p.pbk, sid: p.sid };
     // 3) Reality-проба с реальным SNI
-    if (p.sni) out.tls = await tlsProbe(DE_HOST, DE_PORT, p.sni, 10000);
+    if (p.sni) {
+      lg('tls probe start');
+      out.tls = await tlsProbe(DE_HOST, DE_PORT, p.sni, 10000);
+      lg(`tls: ${out.tls}`);
+    }
   } catch (e) {
+    lg(`panel error: ${e.message}`);
     out.panel = { error: `панель недоступна: ${e.message}` };
   }
 
+  lg('done');
   return out;
 }
 
@@ -94,7 +106,16 @@ router.get('/check', (req, res, next) => {
 
 // Публичный: для режима отладки в APK (телефон, без сессии)
 router.get('/server', async (req, res) => {
-  res.json(await runServerChecks());
+  const t0 = Date.now();
+  console.log('[debug/server] >>> request arrived');
+  try {
+    const r = await runServerChecks();
+    res.json(r);
+    console.log(`[debug/server] <<< response sent (${Date.now() - t0}ms)`);
+  } catch (e) {
+    console.log(`[debug/server] !!! handler error: ${e && e.message}`);
+    try { res.status(500).json({ error: String(e && e.message || e) }); } catch { /* уже ушло */ }
+  }
 });
 
 export default router;

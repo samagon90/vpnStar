@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v19: ДЕПЛОЙ + пред-чеки + МАТРИЦА FINGERPRINT (chrome/safari/ios/android/firefox/random + no-vision)
+# v20: FIX fp=safari (REALITY_FP) + проверка ссылки + T0-инструментация (pm2-логи, health-контроль)
 #      — серверный лог DE показал: ClientHello доходит, но reality-валидация падает.
 #      Гипотеза: крупный uTLS chrome-заголовок (>MTU) режется по пути. Ищем fingerprint, который проживёт.
 #      РЕАЛЬНАЯ ссылка сайта -> xray-клиент на RU -> ВНЕШНИЙ IP DE:443 ->
@@ -25,6 +25,9 @@ if [ -f /opt/sonicvpn/.env ]; then
   mv /opt/sonicvpn/.env /opt/sonicvpn/.env.stray.bak
   echo "stray /opt/sonicvpn/.env moved aside (реальный .env в server/)"
 fi
+# REALITY_FP=safari (матрица 13.09: chrome-заголовок >MTU режется на пути из РФ, safari=OK)
+grep -q '^REALITY_FP=' server/.env 2>/dev/null || echo 'REALITY_FP=safari' >> server/.env
+echo "REALITY_FP=$(grep '^REALITY_FP=' server/.env | cut -d= -f2)"
 pm2 delete sonicvpn >/dev/null 2>&1
 pkill -f "src/index.js" 2>/dev/null
 sleep 2
@@ -55,6 +58,7 @@ LINK=$(curl -s --max-time 120 -b "$J" "$BASE_URL/api/devices/$DEV" | grep -oE 'v
 rm -f "$J"
 LINK="${LINK%%#*}"   # фрагмент (#имя-устройства) НЕ часть параметров
 echo "site link: $LINK"
+printf '%s' "$LINK" | grep -q 'fp=safari' && echo "LINK_FP_OK: ссылка с fp=safari" || echo "LINK_FP_BAD: в ссылке нет fp=safari!"
 
 UUUID=$(printf '%s' "$LINK" | sed -E 's#^vless://([^@]+)@.*#\1#')
 HOST=$(printf '%s' "$LINK" | grep -oE '@[0-9.]+:' | head -1 | sed 's/@//; s/://')
@@ -90,9 +94,13 @@ echo "=== 2c) T0-диагностика (почему /api/debug/server виси
 echo "race-fix в коде: $(grep -c 'Promise.race' server/src/routes/debug.js 2>/dev/null || echo 0)"
 ps aux 2>/dev/null | grep -E "node " | grep -v grep | awk '{print "node pid="$2" start="$9" cmd="$11" "$12" "$13}' | head -6
 echo "env XUI_*: $(grep -E '^XUI_' server/.env 2>/dev/null | cut -c1-70 | tr '\n' ' | ')"
+echo "T0-контроль /api/health: $(curl -s --max-time 5 -w ' [%{http_code} %{time_total}s]' "$BASE_URL/api/health")"
+echo "owner :80: $( (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep ':80 ' | head -2 )"
 T0R=$(curl -s --max-time 25 -o /tmp/t0body -w '%{http_code} time=%{time_total}s' "$BASE_URL/api/debug/server")
 echo "T0 прямой вызов (25s): $T0R"
 head -c 250 /tmp/t0body 2>/dev/null; echo
+echo "pm2-логи [debug/server] (где замерло):"
+pm2 logs sonicvpn --nostream --lines 60 2>/dev/null | grep -a "debug/server" | tail -12
 
 write_mx_cfg() { # $1=fp $2=flow $3=uuid
 cat > /tmp/mx-client.json <<EOF
@@ -129,10 +137,10 @@ mx_test() { # $1=имя $2=fp $3=flow $4=uuid
   esac
 }
 
-echo "=== 3) МАТРИЦА fingerprint (RU->DE, flow=vision, uuid ссылки сайта) ==="
+echo "=== 3) ПРОВЕРКА fingerprint (RU->DE, flow=vision): chrome=контроль, safari=shipping, random=запасной ==="
 echo "matrix start: $(date -u '+%F %T UTC')"
 WINNER=""
-for FP in chrome safari ios android firefox random; do
+for FP in chrome safari random; do
   if mx_test "fp=$FP" "$FP" "xtls-rprx-vision" "$UUUID"; then WINNER="$FP"; fi
 done
 
@@ -154,10 +162,10 @@ fi
 curl -ks -b "$PJAR" -H "X-CSRF-Token: $PCS" --max-time 8 -X DELETE "$PANEL/panel/api/clients/del/$NREF" -o /dev/null && echo "no-vision client удалён" || echo "no-vision client $NREF остался"
 rm -f "$PJAR"
 
-echo "=== 4) WINNER: полный путь (web + DNS + IP) ==="
-if [ -n "$WINNER" ]; then
-  echo "WINNER: fp=$WINNER (flow=vision)"
-  write_mx_cfg "$WINNER" "xtls-rprx-vision" "$UUUID"
+echo "=== 4) SHIPPING: полный путь с fp=safari (тот, что пойдёт в профили) ==="
+echo "матрица-WINNER (информация): ${WINNER:-нет}"
+if [ -n "$WINNER" ] || true; then
+  write_mx_cfg "safari" "xtls-rprx-vision" "$UUUID"
   pkill -f "mx-client.json" 2>/dev/null; sleep 0.5
   /tmp/xray-linux-64 -c /tmp/mx-client.json > /tmp/mx-winner.log 2>&1 &
   WPID=$!
@@ -170,11 +178,9 @@ if [ -n "$WINNER" ]; then
   echo "3) IP, который видит интернет (должен быть $DE_IP): $(printf '%s' "$W3" | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1)"
   kill "$WPID" 2>/dev/null
   case "$W1$W2" in
-    *200*) echo "WINNER_FULL_OK: fp=$WINNER работает полностью. Лечим профили (сайт+приложения) этим fingerprint." ;;
-    *)     echo "WINNER_PARTIAL: fp=$WINNER — база OK, но полный путь сбоку; смотри строки выше" ;;
+    *200*) echo "SHIPPING_FULL_OK: fp=safari работает полностью (web+DNS). Профили выпускаем с fp=safari." ;;
+    *)     echo "SHIPPING_PARTIAL: fp=safari — полная проверка не прошла, смотри строки выше; запасной вариант: ${WINNER:-?}" ;;
   esac
-else
-  echo "MATRIX_FAIL: ни один fingerprint не прошёл путь — скорее всего ДПИ режет Reality по сигнатуре (не по размеру). Нужна смена протокола/ноды."
 fi
 echo "matrix end: $(date -u '+%F %T UTC')"
 
