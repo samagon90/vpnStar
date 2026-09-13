@@ -33,6 +33,9 @@ export const cfg = {
   xui_base: env('XUI_BASE'),
   xui_user: env('XUI_USER'),
   xui_password: env('XUI_PASSWORD'),
+  // SSH-доступ к VPN-серверу для применения новых клиентов (см. Xui#reload)
+  xui_remote_host: env('XUI_REMOTE_HOST'),
+  xui_remote_password: env('XUI_REMOTE_PASSWORD'),
   vpn_demo_host: env('VPN_DEMO_HOST', '203.0.113.10'),
 
   admin_token: env('ADMIN_TOKEN'),

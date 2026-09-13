@@ -159,7 +159,42 @@ class Xui {
       },
       inboundIds: [id],
     });
+    await this.reload();
     return ref;
+  }
+
+  /**
+   * Применить изменения к работающему xray.
+   *
+   * 3x-ui v3 пишет клиентов в свою БД, но НЕ применяет их к работающему
+   * процессу xray (config.json не пересоздаётся, gRPC-применение после
+   * рестарта панели не срабатывает) — такой клиент «фантом»: в панели есть,
+   * но не подключается, пока x-ui не перезапустят. Проверено вживую на
+   * 3x-ui 3.7: /panel/api/clients/add и даже round-trip /inbounds/{get,update}
+   * не регенерируют конфиг; полный рестарт x-ui пересобирает его из БД.
+   *
+   * Поэтому после каждого CRUD перезапускаем x-ui по SSH (иначе — «VPN
+   * перестал работать» для каждого нового устройства). Доступ задаётся в .env:
+   * XUI_REMOTE_HOST / XUI_REMOTE_PASSWORD (пароль root VPN-сервера).
+   */
+  async reload() {
+    const host = cfg.xui_remote_host;
+    const pass = cfg.xui_remote_password;
+    if (!host || !pass) {
+      console.warn('[xui] reload() пропущен: XUI_REMOTE_HOST или XUI_REMOTE_PASSWORD не заданы');
+      return;
+    }
+    const p = String(pass).replace(/'/g, `'\\''`);
+    const cmd = ["sshpass", "-p", p, "ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=8",
+      "root@" + host, "systemctl restart x-ui"].map((a) => `'${a}'`).join(' ');
+    const execCmd = (await import('node:child_process')).exec;
+    await new Promise((res, rej) =>
+      execCmd(cmd, { timeout: 20000 }, (err) => (err ? rej(err) : res())),
+    );
+    // дать панели подняться и пересобрать config.json (проверено: ~5 сек)
+    await new Promise((r) => setTimeout(r, 9000));
+    this.cookies = new Map();
+    this.csrf = ''; // сессия панели умерла — перелогинимся при следующем вызове
   }
 
   /** Включить/выключить клиента по ref (блокировка устройства пользователем). */
@@ -176,12 +211,14 @@ class Xui {
       limitIp: 1,
       totalGB: 0,
     });
+    await this.reload();
   }
 
   /** Удалить клиента (свободит слот устройства). */
   async delClient(ref) {
     // 3x-ui 3.x: del принимает ТОЛЬКО POST (GET → 404)
     await this.api(`/panel/api/clients/del/${encodeURIComponent(ref)}`, undefined, true, 'POST');
+    await this.reload();
   }
 
   async profileFor(device) {
