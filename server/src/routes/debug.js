@@ -70,7 +70,10 @@ async function runServerChecks() {
 
   // 2) Параметры инбоунда из панели (чтобы сравнить с профилем пользователя)
   try {
-    const p = await xui.inboundParams();
+    const p = await Promise.race([
+      xui.inboundParams(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('панель: timeout 15s')), 15000)),
+    ]);
     out.panel = { port: p.port, sni: p.sni, pbk: p.pbk, sid: p.sid };
     // 3) Reality-проба с реальным SNI
     if (p.sni) out.tls = await tlsProbe(DE_HOST, DE_PORT, p.sni, 10000);

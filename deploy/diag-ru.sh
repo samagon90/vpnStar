@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v16: ДЕПЛОЙ (git + единый pm2 на :80, correct cwd) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
+# v17: ДЕПЛОЙ + ПРЕД-ЧЕК прямого пути RU->DE:443 (TCP/TLS) + xray-клиент с debug-логом (git + единый pm2 на :80, correct cwd) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
 #      РЕАЛЬНАЯ ссылка сайта -> xray-клиент на RU -> ВНЕШНИЙ IP DE:443 ->
 #      веб + DNS через туннель + какой IP видит интернет.
 set +e
@@ -64,6 +64,11 @@ echo "parsed: uuid=$UUUID host=$HOST port=$PORT pbk_len=${#PBK} sni=$SNI sid=$SI
 [ ${#UUUID} -eq 36 ] || { echo "EXT_FAIL: в ссылке сайта нет uuid"; exit 0; }
 [ ${#PBK} -ge 40 ] || { echo "EXT_FAIL: в ссылке сайта нет pbk"; exit 0; }
 
+echo "=== 2a) прямой путь RU -> DE:443 (до xray: TCP и TLS) ==="
+timeout 8 bash -c "echo > /dev/tcp/$DE_IP/443" 2>/dev/null && echo "TCP RU->DE:443: OK" || echo "TCP RU->DE:443: FAIL (таймаут/блок)"
+curl -sk --max-time 12 --resolve amd.com:443:$DE_IP -o /dev/null -w "TLS+HTTP RU->DE:443 (sni amd.com): http=%{http_code} %{time_total}s (ожидаем 200/301/403 = жив, 000 = мёртв)\n" "https://amd.com/" 2>&1
+echo
+
 echo "=== 2) xray-клиент v26.7.28 (та же версия, что на DE) ==="
 if [ ! -x /tmp/xray-linux-64 ]; then
   curl -sL --max-time 180 -o /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.7.28/Xray-linux-64.zip
@@ -76,7 +81,7 @@ fi
 
 cat > /tmp/ext-client.json <<EOF
 {
-  "log": { "loglevel": "warning" },
+  "log": { "loglevel": "debug" },
   "inbounds": [ { "tag": "test-in", "listen": "127.0.0.1", "port": 10080, "protocol": "mixed", "settings": { "udp": false } } ],
   "outbounds": [
     { "tag": "vpn", "protocol": "vless",
@@ -103,7 +108,7 @@ echo "2) $T2"
 echo "3) $T3"
 echo "4) $T4"
 echo "5) какой IP видит интернет (должен быть $DE_IP): $(printf '%s' "$T5" | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1)"
-[ -s /tmp/ext-client.log ] && { echo "--- log клиента:"; head -10 /tmp/ext-client.log; }
+[ -s /tmp/ext-client.log ] && { echo "--- log клиента (debug):"; head -30 /tmp/ext-client.log; }
 kill "$CPID" 2>/dev/null
 
 AT=$(grep '^ADMIN_TOKEN=' /opt/sonicvpn/server/.env | cut -d= -f2)
