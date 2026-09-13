@@ -71,6 +71,10 @@
           <input name="ref" id="ref-input" maxlength="10" placeholder="код друга">
           <div class="hint">Другу — 20% с ваших оплат, вам — 7 дней бесплатно</div>
         </div>
+        <div class="field" style="display:flex;gap:8px;align-items:flex-start;font-size:.85rem;color:var(--txt)">
+          <input name="agree" type="checkbox" id="agree-input" style="width:16px;height:16px;margin-top:2px" required>
+          <label for="agree-input">Я старше 18 лет, ознакомился(-ась) с <a href="terms.html" target="_blank">пользовательским соглашением</a> и <a href="privacy.html" target="_blank">политикой конфиденциальности</a> и принимаю их условия</label>
+        </div>
         <button class="btn btn-primary btn-block" type="submit">Создать аккаунт</button>
       </form>
 
@@ -131,6 +135,7 @@
         password: fR.password.value,
         email: fR.email.value || undefined,
         ref: fR.ref.value || undefined,
+        agree: !!fR.agree.checked,
       });
       location.href = (params.get('plan') ? `checkout.html?plan=${params.get('plan')}` : 'account.html');
     } catch (err) {

@@ -19,7 +19,8 @@ const COOKIE = {
  */
 r.post('/register', async (req, res) => {
   try {
-    const { username, password, email, ref } = req.body || {};
+    const { username, password, email, ref, agree } = req.body || {};
+    if (!agree) return res.status(400).json({ error: 'Для регистрации необходимо согласие с условиями и политикой конфиденциальности' });
     const uname = String(username || '').trim().toLowerCase();
     if (!/^[a-z0-9_]{3,20}$/.test(uname)) return res.status(400).json({ error: 'Логин: 3–20 символов, латиница, цифры, _' });
     if (String(password || '').length < 6) return res.status(400).json({ error: 'Пароль: минимум 6 символов' });
