@@ -220,6 +220,22 @@ function httpsGetViaSocks(domain, port, path, timeoutMs = 12000, socksHost = SOC
   });
 }
 
+// ---------- повтор с паузой ----------
+// Часть сетей (ТСПУ/роутеры) при пачке новых соединений прибивают первые
+// попытки; повтор без пары секунд проходит. Одиночная попытка даёт ложный FAIL.
+
+function retried(fn, attempts = 2, pauseMs = 1600) {
+  let last;
+  return (async () => {
+    for (let i = 0; i < attempts; i++) {
+      last = await fn();
+      if (last && last.ok) return last;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, pauseMs));
+    }
+    return last;
+  })();
+}
+
 // ---------- T6: статус сервера с RU-сайта ----------
 
 function siteStatus(timeoutMs = 8000) {
@@ -275,7 +291,7 @@ async function runDiagnostics(profile, opts = {}) {
   };
   if (P && P.host && P.port) {
     out.t1 = await tcpProbe(P.host, P.port, 8000);
-    out.t2 = await tlsProbe(P.host, P.port, P.sni, 10000);
+    out.t2 = await retried(() => tlsProbe(P.host, P.port, P.sni, 10000));
   }
   out.t3 = await dnsProbe('www.youtube.com');
   // T4/T5 — только если локальный прокси (xray) запущен
@@ -285,8 +301,8 @@ async function runDiagnostics(profile, opts = {}) {
     out.t4 = { ok: false, ms: 0, extra: 'xray не запущен (нажмите «Подключить»)' };
     out.t5 = { ok: false, ms: 0, extra: 'xray не запущен (нажмите «Подключить»)' };
   } else {
-    out.t4 = await httpsGetViaSocks('www.youtube.com', 443, '/', 12000, sHost, sPort);
-    out.t5 = await httpsGetViaSocks('www.google.com', 443, '/generate_204', 10000, sHost, sPort);
+    out.t4 = await retried(() => httpsGetViaSocks('www.youtube.com', 443, '/', 12000, sHost, sPort));
+    out.t5 = await retried(() => httpsGetViaSocks('www.google.com', 443, '/generate_204', 10000, sHost, sPort));
   }
   out.t6 = await siteStatus(45000);
   out.ms = Date.now() - t0;
@@ -316,7 +332,7 @@ function makeVerdict(d) {
     } else {
       v.push('Проверки не дали однозначного ответа — отправьте отчёт в поддержку.');
     }
-    if (d.t3 && !d.t3.ok) v.push('DNS на вашем ПК/сети работает плохо: ' + d.t3.extra);
+    if (d.t3 && !d.t3.ok) v.push('DNS на вашем ПК/сети работает плохо: ' + d.t3.extra + ' (если ОС не находит обычные сайты — проверьте DNS роутера/ОС, рекомендуем 1.1.1.1 или 8.8.8.8; через туннель это не влияет, DNS резолвит VPN-сервер)');
   }
   if (d.t6 && d.t6.ok) {
     v.push('Сервер (со стороны RU) в порядке: ' + String(d.t6.extra).slice(0, 120));
@@ -357,6 +373,7 @@ module.exports = {
   tcpProbe,
   tlsProbe,
   dnsProbe,
+  retried,
   socks5Tunnel,
   httpsGetViaSocks,
   siteStatus,
