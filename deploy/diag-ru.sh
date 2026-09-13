@@ -1,19 +1,44 @@
 #!/usr/bin/env bash
-# v14: ПОЛНАЯ ВНЕШНЯЯ ПРОВЕРКА — ровно путь телефона:
+# v15: ДЕПЛОЙ свежего кода сайта (git + pm2) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
 #      РЕАЛЬНАЯ ссылка сайта -> xray-клиент на RU -> ВНЕШНИЙ IP DE:443 ->
 #      веб + DNS через туннель + какой IP видит интернет.
 set +e
 DE_IP=185.125.102.135
+BR=arena/01a05219-vpnstar
+
+echo "=== 0) ДЕПЛОЙ: свежий код сайта в /opt/sonicvpn ==="
+cd /opt/sonicvpn || { echo "DEPLOY_FAIL: /opt/sonicvpn не найден"; exit 0; }
+BEFORE=$(git log --oneline -1 | cut -d' ' -f1)
+if ! git fetch origin "$BR" 2>/dev/null; then
+  echo "DEPLOY_FAIL: git fetch не удался (нет интернета на сервере?)"; exit 0
+fi
+git checkout -f "$BR" 2>/dev/null || git checkout -b "$BR" "origin/$BR"
+git reset --hard "origin/$BR"
+AFTER=$(git log --oneline -1 | cut -d' ' -f1)
+echo "deploy: $BEFORE -> $AFTER"
+pm2 restart sonicvpn >/dev/null 2>&1 || pm2 start server/src/index.js --name sonicvpn >/dev/null 2>&1
+sleep 4
+SRT=$(grep '^PORT=' /opt/sonicvpn/server/.env 2>/dev/null | cut -d= -f2); SRT=${SRT:-80}
+BASE_URL="http://127.0.0.1:$SRT"
+UP=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL/")
+echo "site up: http=$UP ($BASE_URL)"
+T0=$(curl -s --max-time 20 "$BASE_URL/api/debug/server" | head -c 300)
+echo "T0 /api/debug/server (для APK/Windows): $T0"
+W1=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL/win-download.html")
+W2=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL/windows-app/main.js")
+W3=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL/install-sonicvpn.bat")
+echo "T0b windows: page=$W1 app-main=$W2 bat=$W3 (все должны быть 200)"
+echo
 
 echo "=== 1) РЕАЛЬНАЯ ссылка сайта (регистрируем тестового юзера) ==="
 TS=$(date +%s)
-curl -s --max-time 60 -X POST http://127.0.0.1:3000/api/register -H 'Content-Type: application/json' \
+curl -s --max-time 60 -X POST $BASE_URL/api/register -H 'Content-Type: application/json' \
   -d "{\"username\":\"diagext$TS\",\"password\":\"12345678\"}" | head -c 100; echo
 J=/tmp/ext_$$.jar
-curl -s -c "$J" --max-time 10 -X POST http://127.0.0.1:3000/api/login -H 'Content-Type: application/json' \
+curl -s -c "$J" --max-time 10 -X POST $BASE_URL/api/login -H 'Content-Type: application/json' \
   -d "{\"username\":\"diagext$TS\",\"password\":\"12345678\"}" >/dev/null
-DEV=$(curl -s --max-time 10 -b "$J" http://127.0.0.1:3000/api/devices | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
-LINK=$(curl -s --max-time 120 -b "$J" "http://127.0.0.1:3000/api/devices/$DEV" | grep -oE 'vless://[^"]*' | head -1)
+DEV=$(curl -s --max-time 10 -b "$J" $BASE_URL/api/devices | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
+LINK=$(curl -s --max-time 120 -b "$J" "$BASE_URL/api/devices/$DEV" | grep -oE 'vless://[^"]*' | head -1)
 rm -f "$J"
 echo "site link: $LINK"
 
@@ -70,9 +95,9 @@ echo "5) какой IP видит интернет (должен быть $DE_IP
 kill "$CPID" 2>/dev/null
 
 AT=$(grep '^ADMIN_TOKEN=' /opt/sonicvpn/server/.env | cut -d= -f2)
-UROW=$(curl -s --max-time 10 -H "x-admin-token: $AT" "http://127.0.0.1:3000/api/admin/users?search=diagext$TS")
+UROW=$(curl -s --max-time 10 -H "x-admin-token: $AT" "$BASE_URL/api/admin/users?search=diagext$TS")
 UI=$(printf '%s' "$UROW" | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
-[ -n "$UI" ] && curl -s --max-time 30 -X DELETE -H "x-admin-token: $AT" "http://127.0.0.1:3000/api/admin/users/$UI" >/dev/null && echo "тестовый юзер удалён"
+[ -n "$UI" ] && curl -s --max-time 30 -X DELETE -H "x-admin-token: $AT" "$BASE_URL/api/admin/users/$UI" >/dev/null && echo "тестовый юзер удалён"
 
 case "$T1$T2$T3$T4" in
   *200*) echo "EXT_FULL_OK: полный внешний путь работает (ссылка сайта -> внешний IP -> интернет + DNS). Сервер 100% здоров." ;;

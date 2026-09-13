@@ -49,17 +49,22 @@ android/                наше Android-приложение «Sonic VPN»: р�
                         в overlay) — T1-T6 + хвост лога xray (logcat GoLog) + вердикт +
                         «Копировать отчёт» (формат SONIC-APK-DEBUG). Тестируется следующим
                         релизом (владелец: Actions → Run workflow → новый APK → переустановить).
-windows/                Sonic VPN для WINDOWS (Electron v43.7 + xray-core v26.7.28,
+windows/README.md       Sonic VPN для WINDOWS (Electron v43.7 + xray-core v26.7.28,
                         тот же core что на сервере): ссылка/QR → подключение, проверки
                         «работает ли реально» (T1-T6), режим отладки с отчётом
-                        SONIC-WIN-DEBUG. Полное описание: windows/README.md.
-                        Доставка: public/win-download.html (кнопка = bat через Blob) +
-                        ссылки «🖥 Windows» в шапках index/account/help + блок #app;
-                        diag.ps1 (v7+) кладёт bat в %USERPROFILE% при каждом .\diag.bat.
-                        ⚠️ Песочница БЕЗ dotnet/Go/CDN-GitHub (objects.gh мёртв) — бинарники
-                        (Electron 144MB + Xray 40MB) скачивает САМ ПК пользователя в bat;
-                        файлы приложения bat качает ПОШТУЧНО с Pages (zip НЕ собирать!).
-                        Диагностика = чистый Node (windows/app/diagnostics.js) —
+                        SONIC-WIN-DEBUG. Код приложения: public/windows-app/ (раздаёт
+                        RU-сайт). Доставка: public/win-download.html (на САЙТЕ —
+                        http://87.249.49.204/win-download.html после diag.bat; +Pages)
+                        → кнопка = install-sonicvpn.bat (Blob, CRLF-нормализация);
+                        bat качает файлы приложения с RU-сайта (фолбэк Pages),
+                        Electron 144MB + Xray 40MB — с GitHub (со стороны ПК).
+                        ⚠️ .bat: ТОЛЬКО ASCII+CRLF (.gitattributes *.bat -text) —
+                        cmd.exe ломает парсинг на LF и молотит кириллицу (CP437-консоль).
+                        ⚠️ Песочница НЕ ЛЕЗЕТ в RU-сервер (SSH/HTTP egress'ом мёртвы) —
+                        деплой на RU-сайт = ТОЛЬКО через .\diag.bat
+                        (deploy/diag-ru.sh v15: git fetch+reset+pm2 restart + Т0-проверки
+                        windows-файлов + EXT-проверка).
+                        Диагностика = чистый Node (public/windows-app/diagnostics.js) —
                         тестирована в песочнице на живом DE-сервере + SOCKS5-харнессом.
   css/site.css          дизайн-система: Sonic-синий #1e6fff / #45b8ff
   js/api.js             API-хелпер (fetch, API_BASE='' — для split-хостинга на CF Pages)

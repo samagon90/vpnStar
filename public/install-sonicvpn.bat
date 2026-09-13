@@ -3,7 +3,8 @@ setlocal EnableExtensions
 title Sonic VPN for Windows - setup
 
 set "BASE=%USERPROFILE%\SonicVPN"
-set "PAGE=https://samagon90.github.io/vpnStar"
+set "RU=http://87.249.49.204/windows-app"
+set "PG=https://samagon90.github.io/vpnStar/public/windows-app"
 set "ELECTRON_URL=https://github.com/electron/electron/releases/download/v43.7.0/electron-v43.7.0-win32-x64.zip"
 set "TMPZ=%TEMP%\sonicvpn-electron.zip"
 
@@ -21,18 +22,18 @@ if exist "%BASE%\SonicVPN.exe" (
 if not exist "%BASE%" mkdir "%BASE%"
 if not exist "%BASE%\resources" mkdir "%BASE%\resources"
 
-echo [1/5] Downloading app files (small)...
+echo [1/5] Downloading app files from our server...
 set "APPDIR=%BASE%\resources\app"
 if not exist "%APPDIR%\renderer\js" mkdir "%APPDIR%\renderer\js"
-call :fetch "%APPDIR%\package.json" "app/package.json"
-call :fetch "%APPDIR%\main.js" "app/main.js"
-call :fetch "%APPDIR%\preload.js" "app/preload.js"
-call :fetch "%APPDIR%\diagnostics.js" "app/diagnostics.js"
-call :fetch "%APPDIR%\xray-config.js" "app/xray-config.js"
-call :fetch "%APPDIR%\renderer\index.html" "app/renderer/index.html"
-call :fetch "%APPDIR%\renderer\style.css" "app/renderer/style.css"
-call :fetch "%APPDIR%\renderer\ui.js" "app/renderer/ui.js"
-call :fetch "%APPDIR%\renderer\js\jsQR.js" "app/renderer/js/jsQR.js"
+call :fetch "%APPDIR%\package.json" "package.json"
+call :fetch "%APPDIR%\main.js" "main.js"
+call :fetch "%APPDIR%\preload.js" "preload.js"
+call :fetch "%APPDIR%\diagnostics.js" "diagnostics.js"
+call :fetch "%APPDIR%\xray-config.js" "xray-config.js"
+call :fetch "%APPDIR%\renderer\index.html" "renderer\index.html"
+call :fetch "%APPDIR%\renderer\style.css" "renderer\style.css"
+call :fetch "%APPDIR%\renderer\ui.js" "renderer\ui.js"
+call :fetch "%APPDIR%\renderer\js\jsQR.js" "renderer\js\jsQR.js"
 if not exist "%APPDIR%\main.js" (
   echo.
   echo ERROR: could not download app files. Check internet.
@@ -103,14 +104,16 @@ pause
 endlocal
 exit /b 0
 
-rem ---------- subroutine: download one file (curl, fallback iwr) ----------
+rem ---------- subroutine: download one file: RU server first, then GitHub Pages ----------
 :fetch
 set "FDEST=%~1"
-set "FURL=%PAGE%/windows/%~2"
-curl -fL --retry 2 -sS -o "%FDEST%" "%FURL%" 2>nul
-if errorlevel 1 (
-  if exist "%FDEST%" del "%FDEST%" 2>nul
-  powershell -NoProfile -Command "iwr '%FURL%' -OutFile '%FDEST%' -UseBasicParsing" 2>nul
+set "FREL=%~2"
+curl -fL --retry 1 -sS -o "%FDEST%" "%RU%/%FREL%" 2>nul
+if not exist "%FDEST%" (
+  curl -fL --retry 1 -sS -o "%FDEST%" "%PG%/%FREL%" 2>nul
 )
-if not exist "%FDEST%" echo   ! not downloaded: %~2
+if not exist "%FDEST%" (
+  powershell -NoProfile -Command "try { iwr '%RU%/%FREL%' -OutFile '%FDEST%' -UseBasicParsing -TimeoutSec 20 } catch { iwr '%PG%/%FREL%' -OutFile '%FDEST%' -UseBasicParsing }" 2>nul
+)
+if not exist "%FDEST%" echo   ! not downloaded: %FREL%
 exit /b 0

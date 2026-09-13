@@ -20,28 +20,32 @@
 
 | Файл | Назначение |
 |---|---|
-| `build-sonicvpn.bat` | **Одно-двойной-клик сборщик на ПК пользователя.** Скачивает файлы приложения с GitHub Pages, Electron (144 МБ) с GitHub, собирает `%USERPROFILE%\SonicVPN\`, создаёт ярлык на рабочем столе. Распаковка: `tar` (bsdtar, встроен в Win10+) → фолбэк Expand-Archive. Скачивание: `curl` → фолбэк `iwr`. |
-| `app/main.js` | Electron main: загрузка/запуск/остановка xray, системный прокси, IPC, лог. |
-| `app/preload.js` | Мост UI↔main (contextIsolation). |
-| `app/diagnostics.js` | **Чистый Node.js (без Electron)**: T1 tcp, T2 tls(sni), T3 dns, T4/T5 https сквозь локальный socks5 (собственный SOCKS5-клиент, DNS в туннеле), T6 `/api/debug/server` RU-сайта. Парсинг vless://, вердикты, текст отчёта. |
-| `app/xray-config.js` | vless-ссылка → JSON-конфиг xray. |
-| `app/renderer/` | UI (index.html, style.css, ui.js, js/jsQR.js — QR-декодер, vendored через npm). |
-| `app/package.json` | `main: main.js`, версия. |
+| `public/install-sonicvpn.bat` | **Одно-двойной-клик сборщик на ПК пользователя.** Скачивает файлы приложения с **RU-сайта** (http://87.249.49.204/windows-app/, фолбэк — GitHub Pages), Electron (144 МБ) с GitHub, собирает `%USERPROFILE%\SonicVPN\`, создаёт ярлык. **Только ASCII + CRLF** (cmd.exe ломается на LF и на non-ASCII в консоли-CP437). Распаковка: `tar` (bsdtar, Win10+) → Expand-Archive. Скачивание: curl → iwr, RU → Pages. |
+| `public/windows-app/main.js` | Electron main: загрузка/запуск/остановка xray, системный прокси, IPC, лог. |
+| `public/windows-app/preload.js` | Мост UI↔main (contextIsolation). |
+| `public/windows-app/diagnostics.js` | **Чистый Node.js (без Electron)**: T1 tcp, T2 tls(sni), T3 dns, T4/T5 https сквозь локальный socks5 (собственный SOCKS5-клиент, DNS в туннеле), T6 `/api/debug/server` RU-сайта. Парсинг vless://, вердикты, текст отчёта. |
+| `public/windows-app/xray-config.js` | vless-ссылка → JSON-конфиг xray. |
+| `public/windows-app/renderer/` | UI (index.html, style.css, ui.js, js/jsQR.js — QR-декодер, vendored через npm). |
+| `public/windows-app/package.json` | `main: main.js`, версия. |
 
 ## Как доставляется пользователю (важно)
 
-В песочнице нет доступа к CDN GitHub (objects.githubusercontent.com, uploads.github.com,
-npmmirror, nodejs.org — SSL 35/000), поэтому **бинарники скачиваются на ПК пользователя**:
+**Первичный канал — НАШ САЙТ (RU VPS, 87.249.49.204, без VPN)**. GitHub — фолбэк.
+В песочнице нет доступа к CDN GitHub (objects.githubusercontent.com и др. — SSL 35/000),
+поэтому **бинарники скачиваются на ПК пользователя**:
 
-1. Страница `public/win-download.html` (на сайте + Pages): кнопка «Скачать» — JS берёт
-   `build-sonicvpn.bat` (same-origin fetch) и сохраняет через Blob как `sonicvpn-windows.bat`.
-   Ссылка в шапках index/account/help (`🖥 Windows`) и в блоке #app на главной.
-2. `diag.ps1` (v7+) при каждом `.\diag.bat` дополнительно кладёт bat в `%USERPROFILE%`
-   (опционально, в try/catch — не ломает diag).
-3. Bat скачивает **файлы приложения поштучно** с Pages
-   (`https://samagon90.github.io/vpnStar/windows/app/<file>`) — zip НЕ используется,
-   чтобы при изменениях кода не собирать артефакт вручную.
-4. Electron zip: `https://github.com/electron/electron/releases/download/v43.7.0/electron-v43.7.0-win32-x64.zip`.
+1. Страница `public/win-download.html` живёт на САЙТЕ (http://87.249.49.204/win-download.html
+   — после деплоя) и на Pages. Кнопка «Скачать» — same-origin fetch `install-sonicvpn.bat`
+   (рядом в public/), нормализует CRLF, сохраняет через Blob как `sonicvpn-windows.bat`.
+   Ссылки: шапки index/account/help (`🖥 Windows`), блок #app, help.html.
+2. **Деплой на RU-сайт — через `.\diag.bat`** (deploy/diag-ru.sh v15: git fetch + reset --hard
+   + pm2 restart, порт берётся из .env на сервере; Т0-проверки /api/debug/server + windows-файлы
+   → потом EXT-проверка пути телефона). Песочница в RU-сервер НЕ лезет (SSH/HTTP заблокированы
+   egress'ом).
+3. Bat скачивает **файлы приложения поштучно** с RU-сайта
+   (http://87.249.49.204/windows-app/<file>), фолбэк — Pages
+   (https://samagon90.github.io/vpnStar/public/windows-app/<file>). zip НЕ используется.
+4. Electron zip: `https://github.com/electron/electron/releases/download/v43.7.0/electron-v43.7.0-win32-x64.zip` (с GitHub — со стороны ПК пользователя).
 
 Порядок на ПК: `resources/app/` рядом с переименованным `electron.exe` → `SonicVPN.exe`.
 
@@ -66,10 +70,10 @@ npmmirror, nodejs.org — SSL 35/000), поэтому **бинарники ск�
 
 ## Обновление кода приложения
 
-Поменял файл в `windows/app/` → push → Pages обновится → пользователь просто
-запускает `sonicvpn-windows.bat` повторно (bat сам переустанавливает:
-удаляет `%USERPROFILE%\SonicVPN` и скачивает свежие файлы). Никаких артефактов
-собирать не нужно.
+Поменял файл в `public/windows-app/` → push → пользователь: 1) `.\diag.bat`
+(деплой на RU-сайт) 2) заново запускает `sonicvpn-windows.bat` (bat скачает
+свежие файлы с RU-сайта). Никаких артефактов собирать не нужно.
+⚠️ .bat-файлы: только ASCII + CRLF (см. .gitattributes: *.bat -text).
 
 ## Формат отчёта для поддержки
 

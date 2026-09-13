@@ -71,7 +71,7 @@ btn.addEventListener('click', async () => {
   btn.disabled = true;
   state.textContent = 'Скачиваем установщик…';
   try {
-    const res = await fetch('../windows/build-sonicvpn.bat', { cache: 'no-store' });
+    const res = await fetch('install-sonicvpn.bat', { cache: 'no-store' });
     if (!res.ok) throw new Error('http ' + res.status);
     const raw = new TextDecoder('utf-8').decode(new Uint8Array(await res.arrayBuffer()));
     if (!raw.includes('sonicvpn-electron.zip') && !raw.toLowerCase().includes('electron')) throw new Error('bad content');
