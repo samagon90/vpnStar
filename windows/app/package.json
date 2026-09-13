@@ -1,0 +1,9 @@
+{
+  "name": "sonicvpn-windows",
+  "productName": "Sonic VPN",
+  "version": "1.0.0",
+  "description": "Sonic VPN for Windows — подключение к VPN и проверка, что он реально работает",
+  "main": "main.js",
+  "author": "SonicVPN",
+  "license": "UNLICENSED"
+}

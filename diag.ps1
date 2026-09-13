@@ -12,6 +12,14 @@ iwr https://samagon90.github.io/vpnStar/deploy/diag-de.sh -OutFile "$HOME\diag-d
 iwr https://samagon90.github.io/vpnStar/deploy/diag-ru.sh -OutFile "$HOME\diag-ru.sh" -UseBasicParsing
 Write-Host ("sizes: diag-de.sh={0} diag-ru.sh={1}" -f (Get-Item "$HOME\diag-de.sh").Length, (Get-Item "$HOME\diag-ru.sh").Length)
 
+# Windows-приложение: кладём установщик рядом (опционально, не ломает diag)
+try {
+  iwr https://samagon90.github.io/vpnStar/windows/build-sonicvpn.bat -OutFile "$HOME\sonicvpn-windows.bat" -UseBasicParsing
+  Write-Host ("Sonic VPN Windows: установщик лежит рядом - $HOME\sonicvpn-windows.bat (двойной клик)") -ForegroundColor Cyan
+} catch {
+  Write-Host "windows install bat: download skipped" -ForegroundColor DarkGray
+}
+
 Write-Host "===== [1/2] DE server: $deIp (DNS fix in xray config template) =====" -ForegroundColor Cyan
 $deCred = New-Object PSCredential 'root', (ConvertTo-SecureString $dePass -AsPlainText -Force)
 $s1 = New-SSHSession -ComputerName $deIp -Credential $deCred -AcceptKey

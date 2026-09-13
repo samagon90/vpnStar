@@ -45,6 +45,22 @@ android/                наше Android-приложение «Sonic VPN»: р�
                         на help.html/боте/лендинге ЖИВЫЕ. История бага: в sed NDK-шага
                         потерялась backslash-строка → фикс 7cc4ef6 (мержить ТОЛЬКО этот
                         вид файла, не ломать строку `          \` перед ndkVersion).
+                        ✅ Debug-режим ВСТРОЕН (2026-09-13): ☰ → «Диагностика» (DebugActivity.kt
+                        в overlay) — T1-T6 + хвост лога xray (logcat GoLog) + вердикт +
+                        «Копировать отчёт» (формат SONIC-APK-DEBUG). Тестируется следующим
+                        релизом (владелец: Actions → Run workflow → новый APK → переустановить).
+windows/                Sonic VPN для WINDOWS (Electron v43.7 + xray-core v26.7.28,
+                        тот же core что на сервере): ссылка/QR → подключение, проверки
+                        «работает ли реально» (T1-T6), режим отладки с отчётом
+                        SONIC-WIN-DEBUG. Полное описание: windows/README.md.
+                        Доставка: public/win-download.html (кнопка = bat через Blob) +
+                        ссылки «🖥 Windows» в шапках index/account/help + блок #app;
+                        diag.ps1 (v7+) кладёт bat в %USERPROFILE% при каждом .\diag.bat.
+                        ⚠️ Песочница БЕЗ dotnet/Go/CDN-GitHub (objects.gh мёртв) — бинарники
+                        (Electron 144MB + Xray 40MB) скачивает САМ ПК пользователя в bat;
+                        файлы приложения bat качает ПОШТУЧНО с Pages (zip НЕ собирать!).
+                        Диагностика = чистый Node (windows/app/diagnostics.js) —
+                        тестирована в песочнице на живом DE-сервере + SOCKS5-харнессом.
   css/site.css          дизайн-система: Sonic-синий #1e6fff / #45b8ff
   js/api.js             API-хелпер (fetch, API_BASE='' — для split-хостинга на CF Pages)
   admin.html            АДМИН-ПАНЕЛЬ (не в меню сайта; вход по ADMIN_TOKEN, sessionStorage):
@@ -130,7 +146,9 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
     + layout/strings) — workflow НЕ меняли (прав их нет). Сайт при этом ЖИВЁТ НА ХОСТИНГЕ
     (RU VPS, /opt/sonicvpn) — GitHub Pages только для diag-скриптов, НЕ сайт!
 12a. **Диагностика** (`public/debug.html` + `server/src/routes/debug.js` → `GET /api/debug/check`,
-    за requireAuth): для владельца-новичка «почему не работает интернет». С ТЕЛЕФОНА: P1 —
+    за requireAuth; **`GET /api/debug/server` — ПУБЛИЧНЫЙ (без сессии)** — его зовут APK (T6)
+    и Windows-приложение (T6): TCP/TLS RU→DE + параметры инбоунда из панели): для
+    владельца-новичка «почему не работает интернет». С ТЕЛЕФОНА: P1 —
     fetch `https://<VPN-сервер>:443/` no-cors (12с таймаут: ok = путь/туннель жив,
     таймаут = сеть роняет пакеты → блокировка оператора), P2 — DNS (dns.google DoH),
     P3 — google/generate_204. СЕРВЕРНО (RU→DE): TCP-пинг порта, Reality TLS-проба с реальным
@@ -139,7 +157,8 @@ docs/ANALYSIS.md        анализ 24hype.ru и конкурентов (рын
     чекбокс «VPN подключён», блок «Копировать отчёт» (navigator.clipboard) → владелец вставляет
     в чат. Ссылка «🔍 Диагностика» в шапках index/account/help.
 12. **Страница «Как подключиться»** (`public/help.html`): Android (наш APK + инструкция),
-    iOS (Streisand/Hiddify из App Store + инструкция), Windows (v2rayN), macOS/Linux (Hiddify),
+    iOS (Streisand/Hiddify из App Store + инструкция), **Windows (наш Sonic VPN — win-download.html;
+    v2rayN — альтернатива)**, macOS/Linux (Hiddify),
     FAQ по подключению; ссылки на неё: шапка/футер лендинга, кабинет (раздел устройств),
     бот (/start, /help), AI-поддержка (ответы про подключение/устройства)
 

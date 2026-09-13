@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sonic VPN для Windows — скачать</title>
+<link rel="icon" type="image/png" href="img/logo.png">
+<link rel="stylesheet" href="css/site.css">
+<style>
+.card{background:var(--card);border:1px solid var(--card-b);border-radius:var(--r)}
+</style>
+</head>
+<body>
+<div class="sky"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><img src="img/logo.png" alt="Sonic VPN">Sonic VPN</a>
+    <nav>
+      <ul>
+        <li><a href="index.html">Главная</a></li>
+        <li><a href="help.html">Как подключиться</a></li>
+        <li><a href="account.html">Кабинет</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap wrap-narrow">
+  <section class="hero" style="padding-top:64px">
+    <div class="hero-logo"><img src="img/logo.png" alt="Sonic VPN"></div>
+    <div class="badge">🖥️ Sonic VPN для Windows 10 / 11</div>
+    <h1>Приложение для <span class="grad">Windows</span></h1>
+    <p class="sub">Вставь ссылку из Кабинета (или QR) — и приложение само подключится к VPN. Внутри встроенная проверка: <b>работает ли VPN реально</b>, а режим отладки собирает все ошибки — их можно отправить в поддержку одним нажатием.</p>
+    <div class="hero-cta">
+      <button class="btn btn-primary" id="dl-btn" style="padding:16px 34px;font-size:1.05rem">⬇ Скачать Sonic VPN для Windows</button>
+    </div>
+    <p class="sub" id="dl-state" style="margin-top:18px;font-size:.95rem"></p>
+  </section>
+
+  <section style="padding:0 0 60px">
+    <h2 class="h2">Как установить — <span class="grad">3 шага</span></h2>
+    <div class="steps" style="display:flex;flex-direction:column;gap:14px;margin-top:24px">
+      <div class="card reveal" style="padding:20px 24px">
+        <b>1. Скачай</b><br>
+        <span style="color:var(--muted)">Нажми синюю кнопку выше. В «Загрузки» появится файл <b>sonicvpn-windows.bat</b>. Это установщик — он скачает всё остальное сам.</span>
+      </div>
+      <div class="card reveal" style="padding:20px 24px">
+        <b>2. Двойной клик</b><br>
+        <span style="color:var(--muted)">Открой файл <b>sonicvpn-windows.bat</b> двойным кликом (в папке «Загрузки»). Окно само скачает нужные файлы (144 МБ, несколько минут) и соберёт приложение. Не закрывай окно до надписи «ГОТОВО».</span>
+      </div>
+      <div class="card reveal" style="padding:20px 24px">
+        <b>3. Запусти</b><br>
+        <span style="color:var(--muted)">На рабочем столе появится ярлык <b>SonicVPN</b>. Двойной клик → вставь ссылку из Кабинета (кнопка «Копировать» у устройства) → «Подключить». Готово: браузеры пойдут через VPN, а зелёные точки в приложении покажут, что всё реально работает. Если Windows спросит про «неизвестное приложение» — нажми «Подробнее» → «Запуск».</span>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px;padding:16px 20px;color:var(--muted);font-size:.9rem">
+      🔧 Не заработало? Открой приложение → вкладка «Режим отладки» → «Копировать отчёт» → вставь текст в чат поддержки. По отчёту чиним.
+    </div>
+  </section>
+</main>
+
+<footer style="padding:24px;text-align:center;color:var(--muted);font-size:.85rem">
+  Sonic VPN · Windows 10/11, 64-bit · xray-core 26.7.28
+</footer>
+
+<script>
+const btn = document.getElementById('dl-btn');
+const state = document.getElementById('dl-state');
+btn.addEventListener('click', async () => {
+  btn.disabled = true;
+  state.textContent = 'Скачиваем установщик…';
+  try {
+    const res = await fetch('../windows/build-sonicvpn.bat', { cache: 'no-store' });
+    if (!res.ok) throw new Error('http ' + res.status);
+    const text = await res.text();
+    if (!text.includes('sonicvpn-electron.zip') && !text.toLowerCase().includes('electron')) throw new Error('bad content');
+    const blob = new Blob([text], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sonicvpn-windows.bat';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    state.innerHTML = '✅ Готово! Файл <b>sonicvpn-windows.bat</b> начал сохраняться в «Загрузки».<br>Дальше — двойной клик по нему.';
+    btn.textContent = '⬇ Скачать ещё раз';
+    btn.disabled = false;
+  } catch (e) {
+    state.textContent = 'Не получилось: ' + e.message + '. Попробуй ещё раз или напиши в поддержку.';
+    btn.textContent = '⬇ Повторить';
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

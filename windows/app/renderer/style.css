@@ -1,0 +1,167 @@
+:root {
+  --bg: #0d1420;
+  --panel: #131c2c;
+  --card-b: rgba(255, 255, 255, 0.07);
+  --accent: #1e6fff;
+  --accent-2: #45b8ff;
+  --text: #e8eefb;
+  --muted: #8fa0bd;
+  --ok: #31c48d;
+  --bad: #ff6b6b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+}
+.sky {
+  height: 120px;
+  background: linear-gradient(180deg, rgba(30, 111, 255, 0.25), transparent);
+  flex: 0 0 auto;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 26px;
+  margin-top: -60px;
+}
+.brand { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
+.brand .logo { color: var(--accent-2); }
+.brand .win {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--card-b);
+  border-radius: 8px;
+  padding: 2px 8px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--card-b);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-weight: 600;
+}
+main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 26px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--card-b);
+  border-radius: 16px;
+  padding: 18px 20px;
+}
+h3 { font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; }
+.hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.hint b { color: var(--text); }
+textarea {
+  width: 100%;
+  background: #0b111c;
+  color: var(--text);
+  border: 1px solid var(--card-b);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+textarea:focus { outline: 1px solid var(--accent); }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text);
+  background: #1c2940;
+  transition: filter 0.15s;
+}
+.btn:hover { filter: brightness(1.15); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn-primary { background: var(--accent); }
+.btn-danger { background: #7c2d3a; }
+.btn-ghost { background: transparent; border: 1px solid var(--card-b); font-weight: 600; }
+.btn-sm { padding: 6px 12px; font-size: 12.5px; }
+.progress {
+  margin-top: 10px;
+  height: 8px;
+  background: #0b111c;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.3s;
+}
+#msg { font-size: 13px; }
+#msg.ok { color: var(--ok); }
+#msg.err { color: var(--bad); }
+.checks { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.check {
+  display: grid;
+  grid-template-columns: 22px 220px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  background: #0b111c;
+  border: 1px solid var(--card-b);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.check .dot { font-size: 15px; }
+.check .detail { color: var(--muted); font-size: 12px; word-break: break-all; }
+.check .detail.ok { color: var(--ok); }
+.check .detail.bad { color: var(--bad); }
+.verdict {
+  margin-top: 12px;
+  background: rgba(255, 209, 102, 0.08);
+  border: 1px solid rgba(255, 209, 102, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+.report {
+  background: #0b111c;
+  border: 1px solid var(--card-b);
+  border-radius: 10px;
+  padding: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 320px;
+  overflow-y: auto;
+  color: #c7d4ea;
+}
+footer {
+  padding: 10px 26px;
+  color: var(--muted);
+  font-size: 11.5px;
+  border-top: 1px solid var(--card-b);
+}
