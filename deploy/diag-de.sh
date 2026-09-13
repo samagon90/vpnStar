@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v15: DNS-фикс + debug-лог xray (/var/log/x-ui/xray-error.log) + egress DE + РАЗБОР ВНЕШНИХ ПОПЫТОК (RU VPS ip) + чистка diagtest-*
+# v16: + самопроверка "accepted" в server-логе после локального теста + grep отклонений + tcpdump :443 для сравнения ClientHello
 # (название из ответа GET: {clientReverseTags, inboundTags, outboundTestUrl, xraySetting}).
 set +e
 XP=/usr/local/x-ui/bin/xray-linux-amd64
@@ -32,6 +32,8 @@ if [ -s "$XLOG" ]; then
   echo "--- RU VPS 87.249.49.204:"
   grep -acF "87.249.49.204" "$XLOG" | xargs echo "строк про RU VPS:"
   grep -aF "87.249.49.204" "$XLOG" | tail -25
+  echo "--- все отклонения reality (последние 15):"
+  grep -a "processed invalid connection" "$XLOG" | tail -15
   echo "--- хвост лога (50):"
   tail -50 "$XLOG"
 else
@@ -148,6 +150,17 @@ echo "1) $D1"
 echo "2) $D2"
 [ -s /tmp/diag-client.log ] && tail -5 /tmp/diag-client.log
 kill "$CPID" 2>/dev/null
+sleep 1
+echo "=== server-log self-check: 'accepted' в /var/log/x-ui/xray-error.log после локального теста ==="
+echo "accepted-строк всего: $(grep -ac 'accepted' /var/log/x-ui/xray-error.log 2>/dev/null)"
+grep -a "accepted" /var/log/x-ui/xray-error.log 2>/dev/null | tail -6
+if command -v tcpdump >/dev/null 2>&1; then
+  pkill -f "tcpdump.*de443" 2>/dev/null; sleep 0.5
+  nohup tcpdump -i any -s 0 -w /tmp/de443.pcap 'tcp port 443' >/dev/null 2>&1 &
+  echo "tcpdump :443 запущен (сравним байты ClientHello в следующем прогоне)"
+else
+  echo "tcpdump на DE не установлен"
+fi
 DEL1=$(curl -ks -b "$JAR" -H "X-CSRF-Token: $CSRF" -X DELETE "$BASE/panel/api/clients/del/$REF")
 if printf '%s' "$DEL1" | grep -q '"success":true'; then echo "test client deleted"
 else sleep 2

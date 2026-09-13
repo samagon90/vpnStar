@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# v18: ДЕПЛОЙ + пред-чеки RU->DE:443 (TCP/TLS/MTU) + xray-клиент с debug-логом + ПРЕД-ЧЕК прямого пути RU->DE:443 (TCP/TLS) + xray-клиент с debug-логом (git + единый pm2 на :80, correct cwd) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
+# v19: ДЕПЛОЙ + пред-чеки + МАТРИЦА FINGERPRINT (chrome/safari/ios/android/firefox/random + no-vision)
+#      — серверный лог DE показал: ClientHello доходит, но reality-валидация падает.
+#      Гипотеза: крупный uTLS chrome-заголовок (>MTU) режется по пути. Ищем fingerprint, который проживёт.
 #      РЕАЛЬНАЯ ссылка сайта -> xray-клиент на RU -> ВНЕШНИЙ IP DE:443 ->
 #      веб + DNS через туннель + какой IP видит интернет.
 set +e
@@ -84,46 +86,101 @@ fi
 [ -x /tmp/xray-linux-64 ] || { echo "EXT_FAIL: не удалось поставить xray-клиент на RU"; exit 0; }
 /tmp/xray-linux-64 version | head -1
 
-cat > /tmp/ext-client.json <<EOF
+echo "=== 2c) T0-диагностика (почему /api/debug/server висит) ==="
+echo "race-fix в коде: $(grep -c 'Promise.race' server/src/routes/debug.js 2>/dev/null || echo 0)"
+ps aux 2>/dev/null | grep -E "node " | grep -v grep | awk '{print "node pid="$2" start="$9" cmd="$11" "$12" "$13}' | head -6
+echo "env XUI_*: $(grep -E '^XUI_' server/.env 2>/dev/null | cut -c1-70 | tr '\n' ' | ')"
+T0R=$(curl -s --max-time 25 -o /tmp/t0body -w '%{http_code} time=%{time_total}s' "$BASE_URL/api/debug/server")
+echo "T0 прямой вызов (25s): $T0R"
+head -c 250 /tmp/t0body 2>/dev/null; echo
+
+write_mx_cfg() { # $1=fp $2=flow $3=uuid
+cat > /tmp/mx-client.json <<EOF
 {
-  "log": { "loglevel": "debug" },
+  "log": { "loglevel": "warning" },
   "inbounds": [ { "tag": "test-in", "listen": "127.0.0.1", "port": 10080, "protocol": "mixed", "settings": { "udp": false } } ],
   "outbounds": [
     { "tag": "vpn", "protocol": "vless",
-      "settings": { "vnext": [ { "address": "$HOST", "port": $PORT, "users": [ { "id": "$UUUID", "flow": "xtls-rprx-vision", "encryption": "none" } ] } ] },
-      "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "serverName": "$SNI", "fingerprint": "chrome", "publicKey": "$PBK", "shortId": "$SID", "show": false } } },
+      "settings": { "vnext": [ { "address": "$HOST", "port": $PORT, "users": [ { "id": "$3", "flow": "$2", "encryption": "none" } ] } ] },
+      "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "serverName": "$SNI", "fingerprint": "$1", "publicKey": "$PBK", "shortId": "$SID", "show": false } } },
     { "tag": "direct", "protocol": "freedom" }
   ]
 }
 EOF
-/tmp/xray-linux-64 -c /tmp/ext-client.json > /tmp/ext-client.log 2>&1 &
-CPID=$!
-sleep 3
-kill -0 "$CPID" 2>/dev/null || { echo "EXT_FAIL: xray-клиент не стартует:"; head -8 /tmp/ext-client.log; exit 0; }
-echo "xray-клиент работает: внешний путь $HOST:$PORT (как телефон)"
+}
 
-echo "=== 3) тесты через туннель ==="
-echo "RU tests start: $(date -u '+%F %T UTC') (ищи эти попытки в DE-логе)"
-T1=$(curl -s --max-time 20 -x http://127.0.0.1:10080 http://example.com -o /dev/null -w 'example (dns локальный): %{http_code} %{time_total}s')
-T2=$(curl -sk --max-time 20 -x http://127.0.0.1:10080 https://www.youtube.com -o /dev/null -w 'youtube (dns локальный): %{http_code} %{time_total}s')
-T3=$(curl -s --max-time 20 -x socks5h://127.0.0.1:10080 http://example.com -o /dev/null -w 'example (dns СКВОЗЬ туннель): %{http_code} %{time_total}s')
-T4=$(curl -sk --max-time 20 -x socks5h://127.0.0.1:10080 https://www.youtube.com -o /dev/null -w 'youtube (dns сквозь туннель): %{http_code} %{time_total}s')
-T5=$(curl -s --max-time 20 -x socks5h://127.0.0.1:10080 http://neverssl.com)
-echo "1) $T1"
-echo "2) $T2"
-echo "3) $T3"
-echo "4) $T4"
-echo "5) какой IP видит интернет (должен быть $DE_IP): $(printf '%s' "$T5" | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1)"
-[ -s /tmp/ext-client.log ] && { echo "--- log клиента (debug):"; head -30 /tmp/ext-client.log; }
-echo "RU tests end: $(date -u '+%F %T UTC')"
-kill "$CPID" 2>/dev/null
+mx_test() { # $1=имя $2=fp $3=flow $4=uuid
+  write_mx_cfg "$2" "$3" "$4"
+  pkill -f "mx-client.json" 2>/dev/null; sleep 0.5
+  /tmp/xray-linux-64 -c /tmp/mx-client.json > /tmp/mx-client.log 2>&1 &
+  local XPID=$!
+  sleep 2
+  if ! kill -0 "$XPID" 2>/dev/null; then
+    echo "  $1: КЛИЕНТ НЕ СТАРТОВАЛ: $(tail -1 /tmp/mx-client.log)"
+    kill "$XPID" 2>/dev/null
+    return 1
+  fi
+  local R
+  R=$(curl -s --max-time 12 -x http://127.0.0.1:10080 http://example.com -o /dev/null -w '%{http_code} %{time_total}s')
+  kill "$XPID" 2>/dev/null; wait "$XPID" 2>/dev/null
+  case "$R" in
+    200*) echo "  $1: OK ($R)"; return 0 ;;
+    *)    echo "  $1: FAIL ($R)"; return 1 ;;
+  esac
+}
+
+echo "=== 3) МАТРИЦА fingerprint (RU->DE, flow=vision, uuid ссылки сайта) ==="
+echo "matrix start: $(date -u '+%F %T UTC')"
+WINNER=""
+for FP in chrome safari ios android firefox random; do
+  if mx_test "fp=$FP" "$FP" "xtls-rprx-vision" "$UUUID"; then WINNER="$FP"; fi
+done
+
+echo "=== 3b) МАТРИЦА no-vision (клиент с flow='' на сервере) ==="
+PANEL="https://$DE_IP:20461/3dtIfnbTYAw5E0rNtB"
+PUA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+PJAR=/tmp/panelru_$$.jar
+PCS=$(curl -ks -c "$PJAR" --max-time 8 "$PANEL/csrf-token" | grep -oE '"obj":"[^"]+"' | head -1 | sed 's/.*:"//; s/"$//')
+curl -ks -b "$PJAR" -c "$PJAR" --max-time 8 -X POST "$PANEL/login" -H "X-CSRF-Token: $PCS" -H 'Content-Type: application/json' -d '{"username":"12345678","password":"12345678"}' -o /dev/null
+INB_ID=$(curl -ks -b "$PJAR" -H "User-Agent: $PUA" --max-time 8 "$PANEL/panel/api/inbounds/list" | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
+NREF="diagflow-$TS"
+curl -ks -b "$PJAR" -H "User-Agent: $PUA" -H "X-CSRF-Token: $PCS" -H 'Content-Type: application/json' --max-time 8 -X POST "$PANEL/panel/api/clients/add" -d "{\"client\":{\"email\":\"$NREF\",\"flow\":\"\",\"limitIp\":1,\"totalGB\":0,\"enable\":true},\"inboundIds\":[$INB_ID]}" -o /dev/null
+NUUID=$(curl -ks -b "$PJAR" -H "User-Agent: $PUA" --max-time 8 "$PANEL/panel/api/clients/get/$NREF" | grep -oE '"uuid":"[0-9a-f-]+"' | head -1 | sed 's/"uuid":"//; s/"$//')
+echo "no-vision client: ref=$NREF inb=$INB_ID uuid=${NUUID:-НЕ_ПОЛУЧЕН}"
+if [ ${#NUUID} -eq 36 ]; then
+  mx_test "fp=safari flow=none" "safari" "" "$NUUID"
+  mx_test "fp=chrome flow=none" "chrome" "" "$NUUID"
+fi
+curl -ks -b "$PJAR" -H "X-CSRF-Token: $PCS" --max-time 8 -X DELETE "$PANEL/panel/api/clients/del/$NREF" -o /dev/null && echo "no-vision client удалён" || echo "no-vision client $NREF остался"
+rm -f "$PJAR"
+
+echo "=== 4) WINNER: полный путь (web + DNS + IP) ==="
+if [ -n "$WINNER" ]; then
+  echo "WINNER: fp=$WINNER (flow=vision)"
+  write_mx_cfg "$WINNER" "xtls-rprx-vision" "$UUUID"
+  pkill -f "mx-client.json" 2>/dev/null; sleep 0.5
+  /tmp/xray-linux-64 -c /tmp/mx-client.json > /tmp/mx-winner.log 2>&1 &
+  WPID=$!
+  sleep 3
+  W1=$(curl -s --max-time 20 -x http://127.0.0.1:10080 http://example.com -o /dev/null -w 'example: %{http_code} %{time_total}s')
+  W2=$(curl -s --max-time 20 -x socks5h://127.0.0.1:10080 https://www.youtube.com -o /dev/null -w 'youtube(dns-сквозь): %{http_code} %{time_total}s')
+  W3=$(curl -s --max-time 20 -x socks5h://127.0.0.1:10080 http://neverssl.com)
+  echo "1) $W1"
+  echo "2) $W2"
+  echo "3) IP, который видит интернет (должен быть $DE_IP): $(printf '%s' "$W3" | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1)"
+  kill "$WPID" 2>/dev/null
+  case "$W1$W2" in
+    *200*) echo "WINNER_FULL_OK: fp=$WINNER работает полностью. Лечим профили (сайт+приложения) этим fingerprint." ;;
+    *)     echo "WINNER_PARTIAL: fp=$WINNER — база OK, но полный путь сбоку; смотри строки выше" ;;
+  esac
+else
+  echo "MATRIX_FAIL: ни один fingerprint не прошёл путь — скорее всего ДПИ режет Reality по сигнатуре (не по размеру). Нужна смена протокола/ноды."
+fi
+echo "matrix end: $(date -u '+%F %T UTC')"
+
+pkill -f "mx-client.json" 2>/dev/null
 
 AT=$(grep '^ADMIN_TOKEN=' /opt/sonicvpn/server/.env | cut -d= -f2)
 UROW=$(curl -s --max-time 10 -H "x-admin-token: $AT" "$BASE_URL/api/admin/users?search=diagext$TS")
 UI=$(printf '%s' "$UROW" | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
 [ -n "$UI" ] && curl -s --max-time 30 -X DELETE -H "x-admin-token: $AT" "$BASE_URL/api/admin/users/$UI" >/dev/null && echo "тестовый юзер удалён"
-
-case "$T1$T2$T3$T4" in
-  *200*) echo "EXT_FULL_OK: полный внешний путь работает (ссылка сайта -> внешний IP -> интернет + DNS). Сервер 100% здоров." ;;
-  *) echo "EXT_FAIL: внешний путь не работает — смотри log выше" ;;
-esac
