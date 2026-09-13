@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v15: ДЕПЛОЙ свежего кода сайта (git + pm2) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
+# v16: ДЕПЛОЙ (git + единый pm2 на :80, correct cwd) + ВНЕШНЯЯ ПРОВЕРКА (путь телефона):
 #      РЕАЛЬНАЯ ссылка сайта -> xray-клиент на RU -> ВНЕШНИЙ IP DE:443 ->
 #      веб + DNS через туннель + какой IP видит интернет.
 set +e
@@ -16,13 +16,24 @@ git checkout -f "$BR" 2>/dev/null || git checkout -b "$BR" "origin/$BR"
 git reset --hard "origin/$BR"
 AFTER=$(git log --oneline -1 | cut -d' ' -f1)
 echo "deploy: $BEFORE -> $AFTER"
-pm2 restart sonicvpn >/dev/null 2>&1 || pm2 start server/src/index.js --name sonicvpn >/dev/null 2>&1
-sleep 4
+
+# --- нормализация процесса: ОДИН инстанс, порт 80, correct cwd (server/ => .env читается) ---
+sed -i 's/^PORT=.*/PORT=80/' /opt/sonicvpn/server/.env
+if [ -f /opt/sonicvpn/.env ]; then
+  mv /opt/sonicvpn/.env /opt/sonicvpn/.env.stray.bak
+  echo "stray /opt/sonicvpn/.env moved aside (реальный .env в server/)"
+fi
+pm2 delete sonicvpn >/dev/null 2>&1
+pkill -f "src/index.js" 2>/dev/null
+sleep 2
+if command -v fuser >/dev/null 2>&1; then fuser -k 80/tcp 3000/tcp 8080/tcp 2>/dev/null; sleep 1; fi
+pm2 start src/index.js --name sonicvpn --cwd /opt/sonicvpn/server >/dev/null 2>&1
+sleep 5
 SRT=$(grep '^PORT=' /opt/sonicvpn/server/.env 2>/dev/null | cut -d= -f2); SRT=${SRT:-80}
 BASE_URL="http://127.0.0.1:$SRT"
 UP=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL/")
-echo "site up: http=$UP ($BASE_URL)"
-T0=$(curl -s --max-time 20 "$BASE_URL/api/debug/server" | head -c 300)
+echo "site up: http=$UP ($BASE_URL)  [порты: $( (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -E ':(80|3000|8080) ' | awk '{print $4}' | tr '\n' ' ' )]"
+T0=$(curl -s --max-time 45 -w ' [http=%{http_code}]' "$BASE_URL/api/debug/server" | head -c 320)
 echo "T0 /api/debug/server (для APK/Windows): $T0"
 W1=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL/win-download.html")
 W2=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL/windows-app/main.js")
@@ -40,6 +51,7 @@ curl -s -c "$J" --max-time 10 -X POST $BASE_URL/api/login -H 'Content-Type: appl
 DEV=$(curl -s --max-time 10 -b "$J" $BASE_URL/api/devices | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
 LINK=$(curl -s --max-time 120 -b "$J" "$BASE_URL/api/devices/$DEV" | grep -oE 'vless://[^"]*' | head -1)
 rm -f "$J"
+LINK="${LINK%%#*}"   # фрагмент (#имя-устройства) НЕ часть параметров
 echo "site link: $LINK"
 
 UUUID=$(printf '%s' "$LINK" | sed -E 's#^vless://([^@]+)@.*#\1#')
