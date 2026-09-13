@@ -15,15 +15,16 @@ function buildXrayConfig(link, opts = {}) {
   const p = parseVlessLink(link);
   if (!p.host || !p.port || !p.uuid) throw new Error('Не удалось разобрать vless-ссылку');
 
+  // reality-настройки ровно в форме, проверенной на v26.7.28 (см. deploy/diag-ru.sh):
+  // serverName — СТРОКА (не serverNames-массив!), fingerprint, publicKey, shortId, show.
   const realitySettings = {
     show: false,
-    xver: 0,
-    serverNames: p.sni ? [p.sni] : [],
+    serverName: p.sni,
     fingerprint: p.fp || 'chrome',
     publicKey: p.pbk || '',
     shortId: p.sid || '',
-    spiderX: p.spx || '',
   };
+  if (p.spx) realitySettings.spiderX = p.spx;
   // пустые serverNames — невалидно для reality
   if (!p.sni) throw new Error('В ссылке нет sni= (SNI) — проверьте ссылку из Кабинета');
   if (!p.pbk) throw new Error('В ссылке нет pbk= (публичный ключ) — проверьте ссылку из Кабинета');

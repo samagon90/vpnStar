@@ -14,16 +14,12 @@ echo   App folder: %BASE%
 echo ============================================================
 echo.
 
-if exist "%BASE%\SonicVPN.exe" (
-  echo Old version found - reinstalling...
-  rmdir /s /q "%BASE%" 2>nul
-)
-
 if not exist "%BASE%" mkdir "%BASE%"
 if not exist "%BASE%\resources" mkdir "%BASE%\resources"
 
 echo [1/5] Downloading app files from our server...
 set "APPDIR=%BASE%\resources\app"
+if exist "%APPDIR%" rmdir /s /q "%APPDIR%"
 if not exist "%APPDIR%\renderer\js" mkdir "%APPDIR%\renderer\js"
 call :fetch "%APPDIR%\package.json" "package.json"
 call :fetch "%APPDIR%\main.js" "main.js"
@@ -41,6 +37,7 @@ if not exist "%APPDIR%\main.js" (
   exit /b 1
 )
 
+if exist "%BASE%\SonicVPN.exe" goto :after-electron
 if exist "%BASE%\electron.exe" goto :after-electron
 echo [2/5] Downloading Electron (144 MB)...
 echo       Can take 3-15 minutes. Progress below. Do not close window.
@@ -70,11 +67,10 @@ if not exist "%BASE%\electron.exe" (
   exit /b 1
 )
 del "%TMPZ%" 2>nul
-goto :check-app
+goto :after-electron
 :after-electron
-echo [2/5]+[3/5] Electron already unpacked - skipping download.
+echo [2/5]+[3/5] Electron is already here - skipping big download.
 
-:check-app
 echo [4/5] Checking app files...
 if not exist "%BASE%\resources\app\main.js" (
   echo.
