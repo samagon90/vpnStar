@@ -75,25 +75,27 @@ class Xui {
     if (!res.ok || j.success === false) throw new Error(`3x-ui login failed: ${j.msg || res.status}`);
   }
 
-  async api(path, body, retry = true) {
+  async api(path, body, retry = true, method) {
     if (this.cookies.size === 0) await this.login();
+    const m = method ?? (body !== undefined ? 'POST' : 'GET');
+    const hasBody = body !== undefined && body !== null;
     const res = await ufetch(`${cfg.xui_base}${path}`, {
-      method: body ? 'POST' : 'GET',
+      method: m,
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': PANEL_UA,
         Origin: panelOrigin,
         Cookie: this.cookieHeader(),
-        ...(body ? { 'X-CSRF-Token': this.csrf } : {}),
+        ...(hasBody || m === 'POST' ? { 'X-CSRF-Token': this.csrf } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: hasBody ? JSON.stringify(body) : undefined,
       dispatcher: xuiAgent,
     });
     collectCookies(res, this.cookies);
     // сессия истекла → один повтор после повторного входа
     if ((res.status === 401 || res.status === 403) && retry) {
       await this.login();
-      return this.api(path, body, false);
+      return this.api(path, body, false, method);
     }
     const j = await res.json().catch(() => ({}));
     if (!res.ok || j.success === false) throw new Error(`3x-ui ${path}: ${j.msg || res.status}`);
@@ -164,13 +166,22 @@ class Xui {
   async setClientEnabled(ref, enable) {
     const c = await this.clientByEmail(ref);
     if (!c) throw new Error(`client ${ref} not found in 3x-ui`);
-    c.enable = !!enable;
-    await this.api(`/panel/api/clients/update/${encodeURIComponent(ref)}`, c);
+    // 3x-ui 3.x: update принимает ТОЛЬКО минимальный объект (в get allowedIPs
+    // — строка, в update — массив), но limitIp/flow сбрасываются, если их не
+    // задать явно (обязательно 1 устройство = 1 клиент, flow из addVlessClient).
+    await this.api(`/panel/api/clients/update/${encodeURIComponent(ref)}`, {
+      email: ref,
+      enable: !!enable,
+      flow: 'xtls-rprx-vision',
+      limitIp: 1,
+      totalGB: 0,
+    });
   }
 
   /** Удалить клиента (свободит слот устройства). */
   async delClient(ref) {
-    await this.api(`/panel/api/clients/del/${encodeURIComponent(ref)}`);
+    // 3x-ui 3.x: del принимает ТОЛЬКО POST (GET → 404)
+    await this.api(`/panel/api/clients/del/${encodeURIComponent(ref)}`, undefined, true, 'POST');
   }
 
   async profileFor(device) {
