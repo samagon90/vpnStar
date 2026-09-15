@@ -14,19 +14,17 @@
 </header>
 
 <main>
-  <!-- ССЫЛКА -->
+  <!-- ПОДКЛЮЧЕНИЕ -->
   <section class="panel">
-    <h3>🔗 Ссылка VPN</h3>
-    <p class="hint">Скопируй ссылку в <b>Кабинете</b> на сайте (кнопка «Копировать» у устройства) и вставь сюда.
-    Либо вставь скриншот QR — приложение разберёт его.</p>
+    <h3>🔐 Подключение к VPN</h3>
+    <p class="hint">Вставь ссылку из <b>Кабинета</b> (на сайте кнопка «Скопировать» у устройства) — и нажми «Подключить».
+    Ключ сохраняется: в следующий раз он уже будет здесь.</p>
     <textarea id="link" rows="3" placeholder="vless://…"></textarea>
     <div class="row" style="margin-top:10px">
-      <label class="btn btn-ghost btn-sm" for="qr-file">📷 QR со скриншота</label>
-      <input type="file" id="qr-file" accept="image/*" hidden>
-      <span class="spacer"></span>
-      <button class="btn btn-ghost btn-sm" id="paste-btn">📋 Вставить</button>
       <button class="btn btn-primary" id="connect-btn">🚀 Подключить</button>
       <button class="btn btn-danger" id="disconnect-btn" disabled>⛔ Отключить</button>
+      <span class="spacer"></span>
+      <label class="hint"><input type="checkbox" id="auto-cb" style="vertical-align:-2px"> подключаться автоматически</label>
     </div>
     <div id="core-progress" class="progress" style="display:none">
       <div class="progress-bar" id="core-progress-bar"></div>
@@ -34,39 +32,32 @@
     <p class="hint" id="msg" style="margin-top:10px"></p>
   </section>
 
-  <!-- РАБОТАЕТ ЛИ -->
-  <section class="panel">
-    <h3><span>✅ Работает ли реально?</span>
-      <button class="btn btn-ghost btn-sm" id="recheck-btn" style="margin-left:auto">🔄 Проверить ещё раз</button>
-    </h3>
-    <div class="checks" id="checks">
-      <div class="check"><span class="dot" id="c1-dot">⚪</span><b>Сервер VPN достижим</b><span class="detail" id="c1-detail">—</span></div>
-      <div class="check"><span class="dot" id="c2-dot">⚪</span><b>YouTube через туннель</b><span class="detail" id="c2-detail">—</span></div>
-      <div class="check"><span class="dot" id="c3-dot">⚪</span><b>Google через туннель</b><span class="detail" id="c3-detail">—</span></div>
-      <div class="check"><span class="dot" id="c4-dot">⚪</span><b>DNS твоего ПК</b><span class="detail" id="c4-detail">—</span></div>
-      <div class="check"><span class="dot" id="c5-dot">⚪</span><b>Статус сервера (со стороны RU)</b><span class="detail" id="c5-detail">—</span></div>
+  <!-- ПРОВЕРКА И ОТЛАДКА (для поддержки) -->
+  <details class="panel">
+    <summary style="cursor:pointer;font-weight:700;color:var(--muted)">🔧 Проверка и отладка</summary>
+    <div style="margin-top:12px">
+      <div class="checks" id="checks">
+        <div class="check"><span class="dot" id="c1-dot">⚪</span><b>Сервер VPN достижим</b><span class="detail" id="c1-detail">—</span></div>
+        <div class="check"><span class="dot" id="c2-dot">⚪</span><b>YouTube через туннель</b><span class="detail" id="c2-detail">—</span></div>
+        <div class="check"><span class="dot" id="c3-dot">⚪</span><b>Google через туннель</b><span class="detail" id="c3-detail">—</span></div>
+        <div class="check"><span class="dot" id="c4-dot">⚪</span><b>DNS твоего ПК</b><span class="detail" id="c4-detail">—</span></div>
+        <div class="check"><span class="dot" id="c5-dot">⚪</span><b>Статус сервера</b><span class="detail" id="c5-detail">—</span></div>
+      </div>
+      <div class="verdict" id="verdict" style="display:none"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn-ghost btn-sm" id="recheck-btn">🔄 Проверить ещё раз</button>
+        <button class="btn btn-ghost btn-sm" id="copy-btn">📋 Копировать отчёт</button>
+        <span class="hint" id="copy-hint"></span>
+      </div>
+      <pre id="report" class="report" style="margin-top:10px">(отчёт появится после подключения или проверки)</pre>
     </div>
-    <div class="verdict" id="verdict" style="display:none"></div>
-  </section>
-
-  <!-- ОТЛАДКА -->
-  <section class="panel">
-    <h3>🔧 Режим отладки</h3>
-    <p class="hint">Полный отчёт: параметры профиля, все проверки с таймингами, ошибки и лог xray-core.
-    Жми «Копировать отчёт» и вставь текст в чат поддержки — по нему чиним.</p>
-    <pre id="report" class="report">(отчёт появится после подключения или проверки)</pre>
-    <div class="row" style="margin-top:10px">
-      <button class="btn btn-primary" id="copy-btn">📋 Копировать отчёт</button>
-      <span class="hint" style="margin-left:10px" id="copy-hint"></span>
-    </div>
-  </section>
+  </details>
 </main>
 
 <footer>
-  Sonic VPN · локальный прокси 127.0.0.1:10809 (системный) · xray-core 26.7.28
+  Sonic VPN · локальный прокси 127.0.0.1:10809 (системный)
 </footer>
 
-<script src="js/jsQR.js"></script>
 <script src="ui.js"></script>
 </body>
 </html>

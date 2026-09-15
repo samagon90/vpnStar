@@ -71,50 +71,20 @@ function setStatus(state, message) {
   $('disconnect-btn').disabled = state !== 'connected';
 }
 
-// ---------- QR ----------
+// ---------- сохранённый профиль и автоподключение ----------
 
-$('qr-file').addEventListener('change', async (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  setMsg('Читаю QR…');
+async function initProfile() {
   try {
-    const img = await new Promise((resolve, reject) => {
-      const im = new Image();
-      im.onload = () => resolve(im);
-      im.onerror = () => reject(new Error('не удалось открыть изображение'));
-      im.src = URL.createObjectURL(file);
-    });
-    const canvas = document.createElement('canvas');
-    const scale = Math.min(1, 1000 / Math.max(img.width, img.height));
-    canvas.width = Math.round(img.width * scale);
-    canvas.height = Math.round(img.height * scale);
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = window.jsQR(data.data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
-    if (!code || !code.data) {
-      setMsg('QR не распознан. Проверь скриншот (чтобы код был крупно и чётко).', 'err');
-      return;
-    }
-    $('link').value = code.data.trim();
-    setMsg('QR распознан: ' + code.data.slice(0, 60) + '…', 'ok');
-  } catch (err) {
-    setMsg('Ошибка чтения QR: ' + err.message, 'err');
+    const p = await window.sonic.getProfile();
+    if (p && p.link) $('link').value = p.link;
+    $('auto-cb').checked = !!(p && p.autoconnect);
+    if (p && p.autoconnect && p.link) addEventListener('load', () => $('connect-btn').click());
+  } catch {
+    /* ignore */
   }
-  e.target.value = '';
-});
+}
 
 // ---------- кнопки ----------
-
-$('paste-btn').addEventListener('click', async () => {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) $('link').value = text.trim();
-    setMsg('Вставлено из буфера обмена.', 'ok');
-  } catch {
-    setMsg('Не удалось прочитать буфер — вставь ссылку вручную (Ctrl+V).', 'err');
-  }
-});
 
 $('connect-btn').addEventListener('click', async () => {
   const link = $('link').value.trim();
@@ -143,6 +113,10 @@ $('disconnect-btn').addEventListener('click', async () => {
   const r = await window.sonic.disconnect();
   setStatus('disconnected');
   setMsg(r.ok ? 'Отключено. Системный прокси снят.' : 'Ошибка отключения', r.ok ? 'ok' : 'err');
+});
+
+$('auto-cb').addEventListener('change', () => {
+  window.sonic.setAutoconnect($('auto-cb').checked);
 });
 
 $('recheck-btn').addEventListener('click', async () => {
@@ -183,3 +157,4 @@ window.sonic.onCoreProgress((p) => {
 });
 
 setStatus('disconnected');
+initProfile();

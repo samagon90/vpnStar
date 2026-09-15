@@ -162,6 +162,9 @@ class Xui {
    * Один клиент 3x-ui = ОДНО устройство (limitIp: 1).
    * email = наш стабильный ref. UUID генерирует сама панель
    * (v3: per-protocol secrets server-side; поле — `uuid`, не `id`).
+   *
+   * Рестарт НЕ нужен: 3x-ui 3.7 применяет add к работающему xray мгновенно
+   * (проверено вживую: клиент подключается сразу после add, без перезапуска).
    */
   async addVlessClient(user, device) {
     const { id } = await this.inboundId();
@@ -178,42 +181,7 @@ class Xui {
       },
       inboundIds: [id],
     });
-    await this.reload();
     return ref;
-  }
-
-  /**
-   * Применить изменения к работающему xray.
-   *
-   * 3x-ui v3 пишет клиентов в свою БД, но НЕ применяет их к работающему
-   * процессу xray (config.json не пересоздаётся, gRPC-применение после
-   * рестарта панели не срабатывает) — такой клиент «фантом»: в панели есть,
-   * но не подключается, пока x-ui не перезапустят. Проверено вживую на
-   * 3x-ui 3.7: /panel/api/clients/add и даже round-trip /inbounds/{get,update}
-   * не регенерируют конфиг; полный рестарт x-ui пересобирает его из БД.
-   *
-   * Поэтому после каждого CRUD перезапускаем x-ui по SSH (иначе — «VPN
-   * перестал работать» для каждого нового устройства). Доступ задаётся в .env:
-   * XUI_REMOTE_HOST / XUI_REMOTE_PASSWORD (пароль root VPN-сервера).
-   */
-  async reload() {
-    const host = cfg.xui_remote_host;
-    const pass = cfg.xui_remote_password;
-    if (!host || !pass) {
-      console.warn('[xui] reload() пропущен: XUI_REMOTE_HOST или XUI_REMOTE_PASSWORD не заданы');
-      return;
-    }
-    const p = String(pass).replace(/'/g, `'\\''`);
-    const cmd = ["sshpass", "-p", p, "ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=8",
-      "root@" + host, "systemctl restart x-ui"].map((a) => `'${a}'`).join(' ');
-    const execCmd = (await import('node:child_process')).exec;
-    await new Promise((res, rej) =>
-      execCmd(cmd, { timeout: 20000 }, (err) => (err ? rej(err) : res())),
-    );
-    // дать панели подняться и пересобрать config.json (проверено: ~5 сек)
-    await new Promise((r) => setTimeout(r, 9000));
-    this.cookies = new Map();
-    this.csrf = ''; // сессия панели умерла — перелогинимся при следующем вызове
   }
 
   /** Включить/выключить клиента по ref (блокировка устройства пользователем).
@@ -223,7 +191,8 @@ class Xui {
    *  вернулся uuid="75" = id) — такие клиенты перестают подключаться. Поэтому
    *  переключаем enable штатным round-trip /inbounds/{get,update}: берём inbound,
    *  меняем флаг у одного клиента, отправляем объект обратно (uuid не трогаем).
-   *  Если состояние и так целевое — restart x-ui не делаем (лишние обрывы сессий). */
+   *  Всё применяется к работающему xray мгновенно (проверено вживую). Если
+   *  состояние и так целевое — ничего не отправляем. */
   async setClientEnabled(ref, enable) {
     const { id } = await this.inboundId();
     const obj = await this.api(`/panel/api/inbounds/get/${id}`);
@@ -231,17 +200,15 @@ class Xui {
     if (!clients) throw new Error('3x-ui: в inbound нет settings.clients');
     const target = clients.find((c) => c.email === ref);
     if (!target) throw new Error(`client ${ref} not found in 3x-ui`);
-    if (!!target.enable === !!enable) return; // уже в нужном состоянии — без рестарта
+    if (!!target.enable === !!enable) return; // уже в нужном состоянии
     target.enable = enable ? true : false;
     await this.api(`/panel/api/inbounds/update/${id}`, obj);
-    await this.reload();
   }
 
-  /** Удалить клиента (свободит слот устройства). */
+  /** Удалить клиента (свободит слот устройства). 3x-ui удаляет из работающего xray мгновенно. */
   async delClient(ref) {
     // 3x-ui 3.x: del принимает ТОЛЬКО POST (GET → 404)
     await this.api(`/panel/api/clients/del/${encodeURIComponent(ref)}`, undefined, true, 'POST');
-    await this.reload();
   }
 
   async profileFor(device) {

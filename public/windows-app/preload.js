@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('sonic', {
   connect: (link) => ipcRenderer.invoke('app:connect', link),
   disconnect: () => ipcRenderer.invoke('app:disconnect'),
   diagnose: () => ipcRenderer.invoke('app:diagnose'),
+  getProfile: () => ipcRenderer.invoke('app:get-profile'),
+  setAutoconnect: (v) => ipcRenderer.invoke('app:set-autoconnect', v),
   copyReport: (text) => ipcRenderer.invoke('app:copy-report', text),
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   onStatus: (cb) => ipcRenderer.on('status', (_e, p) => cb(p)),

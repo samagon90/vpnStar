@@ -25,12 +25,15 @@ const CORE_DIR = path.join(APP_DIR, 'core');
 const XRAY_EXE = path.join(CORE_DIR, 'xray.exe');
 const CONFIG_PATH = path.join(CORE_DIR, 'config.json');
 const ERROR_LOG = path.join(CORE_DIR, 'xray-error.log');
+const PROFILE_FILE = path.join(APP_DIR, 'profile.link');
+const SETTINGS_FILE = path.join(APP_DIR, 'settings.json');
 
 let win = null;
 let xrayProc = null;
 let xrayLogTail = '';
 let state = 'disconnected'; // disconnected | connecting | connected
 let currentLink = '';
+let autoconnect = false;
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -38,6 +41,45 @@ function send(channel, payload) {
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
+}
+
+// ---------- сохранённый профиль (ключ подключается автоматически) ----------
+
+function saveProfile(link) {
+  try {
+    ensureDir(APP_DIR);
+    fs.writeFileSync(PROFILE_FILE, String(link || ''), 'utf8');
+  } catch (e) {
+    console.warn('saveProfile:', e.message);
+  }
+}
+
+function loadProfile() {
+  try {
+    return fs.existsSync(PROFILE_FILE) ? fs.readFileSync(PROFILE_FILE, 'utf8').trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+function saveSettings() {
+  try {
+    ensureDir(APP_DIR);
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ autoconnect: !!autoconnect }), 'utf8');
+  } catch (e) {
+    console.warn('saveSettings:', e.message);
+  }
+}
+
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const s = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+      autoconnect = !!s.autoconnect;
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ---------- загрузка core (первый запуск) ----------
@@ -259,11 +301,13 @@ function createWindow() {
 ipcMain.handle('app:connect', async (_e, link) => {
   try {
     if (!/vless:\/\//i.test(String(link || '').trim())) {
-      return { ok: false, error: 'Вставьте vless://-ссылку из Кабинета (кнопка «Копировать» на сайте)' };
+      return { ok: false, error: 'Вставьте vless://-ссылку из Кабинета (кнопка «Скопировать» у устройства на сайте)' };
     }
     const core = await ensureCore();
     if (core.installed) send('core-progress', null);
-    await startProxy(String(link).trim());
+    const trimmed = String(link).trim();
+    await startProxy(trimmed);
+    saveProfile(trimmed);
     const { diag, report } = await runDiag();
     return { ok: true, diag, report };
   } catch (e) {
@@ -281,6 +325,16 @@ ipcMain.handle('app:diagnose', async () => {
   return { ok: true, diag, report };
 });
 
+ipcMain.handle('app:get-profile', async () => {
+  return { link: loadProfile(), autoconnect: !!autoconnect };
+});
+
+ipcMain.handle('app:set-autoconnect', async (_e, v) => {
+  autoconnect = !!v;
+  saveSettings();
+  return { ok: true };
+});
+
 ipcMain.handle('app:copy-report', async (_e, text) => {
   clipboard.writeText(String(text || ''));
   return { ok: true };
@@ -292,6 +346,7 @@ ipcMain.handle('app:open-external', (_e, url) => {
 });
 
 app.whenReady().then(() => {
+  loadSettings();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

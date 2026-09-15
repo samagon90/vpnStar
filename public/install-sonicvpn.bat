@@ -20,7 +20,7 @@ if not exist "%BASE%\resources" mkdir "%BASE%\resources"
 echo [1/5] Downloading app files from our server...
 set "APPDIR=%BASE%\resources\app"
 if exist "%APPDIR%" rmdir /s /q "%APPDIR%"
-if not exist "%APPDIR%\renderer\js" mkdir "%APPDIR%\renderer\js"
+if not exist "%APPDIR%\renderer" mkdir "%APPDIR%\renderer"
 call :fetch "%APPDIR%\package.json" "package.json"
 call :fetch "%APPDIR%\main.js" "main.js"
 call :fetch "%APPDIR%\preload.js" "preload.js"
@@ -29,7 +29,6 @@ call :fetch "%APPDIR%\xray-config.js" "xray-config.js"
 call :fetch "%APPDIR%\renderer\index.html" "renderer\index.html"
 call :fetch "%APPDIR%\renderer\style.css" "renderer\style.css"
 call :fetch "%APPDIR%\renderer\ui.js" "renderer\ui.js"
-call :fetch "%APPDIR%\renderer\js\jsQR.js" "renderer\js\jsQR.js"
 if not exist "%APPDIR%\main.js" (
   echo.
   echo ERROR: could not download app files. Check internet.
@@ -78,7 +77,7 @@ if not exist "%BASE%\resources\app\main.js" (
   pause
   exit /b 1
 )
-if not exist "%BASE%\resources\app\renderer\js\jsQR.js" (
+if not exist "%BASE%\resources\app\renderer\index.html" (
   echo.
   echo ERROR: app files are not complete.
   pause

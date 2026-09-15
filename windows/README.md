@@ -1,8 +1,9 @@
 # Sonic VPN для Windows
 
 Приложение для Windows 10/11 (64-bit): пользователь вставляет vless-ссылку из Кабинета
-(или QR со скриншота) → приложение подключается к VPN (xray-core) → **показывает,
-работает ли VPN реально** (проверки) + **режим отладки** с полным отчётом для поддержки.
+→ приложение подключается к VPN (xray-core). **Ключ сохраняется**: при следующем запуске
+приложение подставляет его само (опционально — автоподключение). Встроена проверка
+**«работает ли VPN реально»** + режим отладки с полным отчётом для поддержки.
 
 ## Архитектура
 
@@ -25,8 +26,10 @@
 | `public/windows-app/preload.js` | Мост UI↔main (contextIsolation). |
 | `public/windows-app/diagnostics.js` | **Чистый Node.js (без Electron)**: T1 tcp, T2 tls(sni), T3 dns, T4/T5 https сквозь локальный socks5 (собственный SOCKS5-клиент, DNS в туннеле), T6 `/api/debug/server` RU-сайта. Парсинг vless://, вердикты, текст отчёта. |
 | `public/windows-app/xray-config.js` | vless-ссылка → JSON-конфиг xray. |
-| `public/windows-app/renderer/` | UI (index.html, style.css, ui.js, js/jsQR.js — QR-декодер, vendored через npm). |
+| `public/windows-app/renderer/` | UI (index.html, style.css, ui.js). Ранее был QR-декодер jsQR — убран при упрощении UI. |
 | `public/windows-app/package.json` | `main: main.js`, версия. |
+| `%APPDATA%\SonicVPN\profile.link` | Сохранённый vless-ключ (пишется при успешном подключении). |
+| `%APPDATA%\SonicVPN\settings.json` | Настройки: `{ autoconnect: true|false }`. |
 
 ## Как доставляется пользователю (важно)
 

@@ -50,7 +50,7 @@ export const DEVICE_PACK_PRICE_CENTS = 9900; // +1 устройство — 99 �
 export const DEVICE_PACK_MAX = 8; // докупить можно до 10 устройств всего
 
 export const PLANS = [
-  { id: 1, key: 'm1', name: '1 месяц', months: 1, price_cents: 19900 },
-  { id: 2, key: 'm3', name: '3 месяца', months: 3, price_cents: 49900, popular: true },
-  { id: 3, key: 'm6', name: '6 месяцев', months: 6, price_cents: 89900, best: true },
+  { id: 1, key: 'm1', name: '1 месяц', months: 1, price_cents: 24900 },
+  { id: 2, key: 'm3', name: '3 месяца', months: 3, price_cents: 69900, popular: true },
+  { id: 3, key: 'm6', name: '6 месяцев', months: 6, price_cents: 129900, best: true },
 ];
