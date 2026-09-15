@@ -223,6 +223,12 @@ devices/buy + confirm-mock (лимит 3) → PATCH enabled=false/true → DELET
   клиента СРАЗУ на всех (`allVlessInboundIds`), `limitIp: 2` для новых (защита от ложных
   банов 3x-ipl при CGNAT/двух сетях — 15.09 было 2 ложных бана); старые клиенты limitIp:1
   не трогать батчем (update панели хрупкий). Профили из кабинета — основной вход.
+- **Скорость (2026-09-15)**: sysctl `99-sonicvpn-perf.conf` (TFO=3, slow_start_after_idle=0,
+  keepalive 300, somaxconn 4096) + iptables mangle MSS 1380 на OUTPUT (оба сервера);
+  TFO и в xray (RU config sockopt + DE инбаунды 2,3). Замер через боевой мост RU→DE:
+  1 поток 677 Мбит/с, 10 потоков 1.01 Гбит/с (потолок порта), xray ~14% ядра на 1 Гбит/с.
+  iperf3 -P 30 сегфолтится сам по себе (баг iperf, не VPN). Оценка: 300–500 платных
+  при 25% concurrency; лимит — полоса, а не CPU. RU ping→DE 37мс (физика).
 
 ## 9. Ограничения / что НЕ проверено в песочнице
 
