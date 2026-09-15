@@ -51,6 +51,9 @@ android/
     res/values/ic_launcher_background.xml  фон адаптивной иконки
     res/values/strings_debug.xml           строки режима отладки
     res/layout/activity_debug.xml          экран «Диагностика»
+    res/layout/activity_main.xml           главный экран в духе Happ: гигантская кнопка
+                                     по центру + крупный статус (все android:id
+                                     1:1 с v2rayNG 2.2.6, иначе не соберётся)
     res/menu/menu_drawer.xml               drawer: ТОЛЬКО Настройки/Диагностика/О приложении
                                      (урезано 15.09.2026: убраны подписки, per-app, маршруты, реклама,
                                      logcat, проверка обновлений, бэкап)
