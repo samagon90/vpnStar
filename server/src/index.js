@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cfg } from './config.js';
@@ -19,6 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(parseCookies);
+app.use(compression()); // gzip для HTML/CSS/JS/JSON — мобильные глотают меньше
 
 // CORS: для варианта, когда сайт на Cloudflare Pages, а API — на VPS (см. deploy/README.md)
 const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -58,7 +60,13 @@ app.use('/api/devices', requireAuth, devicesRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // --- Статика: сайт (работает в РФ без VPN: деплой на Cloudflare Pages / за Cloudflare-прокси) ---
-app.use(express.static(path.join(__dirname, '..', '..', 'public')));
+// Тяжёлые/стабильные ассеты (картинки, css, js) кэшируем надолго — иначе браузер
+// на телефоне качал 1МБ-логотип при каждой навигации (максимальное замедление).
+const PUBLIC_DIR = path.join(__dirname, '..', '..', 'public');
+app.use('/img', express.static(path.join(PUBLIC_DIR, 'img'), { maxAge: '7d', index: false }));
+app.use('/css', express.static(path.join(PUBLIC_DIR, 'css'), { maxAge: '7d', index: false }));
+app.use('/js', express.static(path.join(PUBLIC_DIR, 'js'), { maxAge: '7d', index: false }));
+app.use(express.static(PUBLIC_DIR, { maxAge: 0 }));
 
 app.use((err, req, res, next) => {
   console.error('[http]', err);
