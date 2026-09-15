@@ -216,20 +216,24 @@ class Xui {
     this.csrf = ''; // сессия панели умерла — перелогинимся при следующем вызове
   }
 
-  /** Включить/выключить клиента по ref (блокировка устройства пользователем). */
+  /** Включить/выключить клиента по ref (блокировка устройства пользователем).
+   *
+   *  3x-ui 3.7: /panel/api/clients/update НАДЁЖНО работает только с полным объектом
+   *  (id + uuid), но при этом panel ИСПОРТИЛ uuid у клиента (в get после update
+   *  вернулся uuid="75" = id) — такие клиенты перестают подключаться. Поэтому
+   *  переключаем enable штатным round-trip /inbounds/{get,update}: берём inbound,
+   *  меняем флаг у одного клиента, отправляем объект обратно (uuid не трогаем).
+   *  Если состояние и так целевое — restart x-ui не делаем (лишние обрывы сессий). */
   async setClientEnabled(ref, enable) {
-    const c = await this.clientByEmail(ref);
-    if (!c) throw new Error(`client ${ref} not found in 3x-ui`);
-    // 3x-ui 3.x: update принимает ТОЛЬКО минимальный объект (в get allowedIPs
-    // — строка, в update — массив), но limitIp/flow сбрасываются, если их не
-    // задать явно (обязательно 1 устройство = 1 клиент, flow из addVlessClient).
-    await this.api(`/panel/api/clients/update/${encodeURIComponent(ref)}`, {
-      email: ref,
-      enable: !!enable,
-      flow: 'xtls-rprx-vision',
-      limitIp: 1,
-      totalGB: 0,
-    });
+    const { id } = await this.inboundId();
+    const obj = await this.api(`/panel/api/inbounds/get/${id}`);
+    const clients = Array.isArray(obj?.settings?.clients) ? obj.settings.clients : null;
+    if (!clients) throw new Error('3x-ui: в inbound нет settings.clients');
+    const target = clients.find((c) => c.email === ref);
+    if (!target) throw new Error(`client ${ref} not found in 3x-ui`);
+    if (!!target.enable === !!enable) return; // уже в нужном состоянии — без рестарта
+    target.enable = enable ? true : false;
+    await this.api(`/panel/api/inbounds/update/${id}`, obj);
     await this.reload();
   }
 

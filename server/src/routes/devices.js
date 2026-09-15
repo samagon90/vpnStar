@@ -112,14 +112,15 @@ r.get('/:id', async (req, res) => {
     try { await provider.provisionDevice(req.user, device); } catch (e) { console.error('[devices] provision', e.message); }
   }
   const d = q.device(req.params.id);
-  let profile = null;
+  let profile;
   try {
     profile = await provider.profile(req.user, d);
     profile.qr = await provider.qrDataUrl(profile);
-    delete profile.demo;
   } catch (e) {
     console.error('[devices] profile', e.message);
+    return res.status(502).json({ error: e.message || 'Профиль временно недоступен' });
   }
+  delete profile.demo;
   res.json({ device: deviceInfo(d), profile });
 });
 

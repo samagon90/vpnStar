@@ -48,9 +48,10 @@ function mockProfileFor(user, device) {
 export const provider = {
   name: () => (cfg.xui_base ? '3x-ui' : 'mock'),
 
-  /** Создать VPN-клиент для устройства (1 устройство = 1 клиент). Обновляет device.ref_id. */
-  async provisionDevice(user, device) {
-    if (device.ref_id && device.provider === this.name() && device.provider !== 'pending') return device.ref_id;
+  /** Создать VPN-клиент для устройства (1 устройство = 1 клиент). Обновляет device.ref_id.
+   *  opts.force=true — пересоздать клиент в панели, даже если ref уже есть (клиент пропал). */
+  async provisionDevice(user, device, opts = {}) {
+    if (!opts.force && device.ref_id && device.provider === this.name() && device.provider !== 'pending') return device.ref_id;
     let refId;
     if (cfg.xui_base) {
       refId = await xui.addVlessClient(user, device);
@@ -61,16 +62,31 @@ export const provider = {
     return refId;
   },
 
-  /** Профиль устройства (VLESS-ссылка + конфиг) */
+  /** Профиль устройства (VLESS-ссылка + конфиг).
+   *
+   *  Важно: в боевом режиме (cfg.xui_base) mock-профиль НЕ отдаём — поддельная ссылка
+   *  не подключится и введёт пользователя в заблуждение. Если клиент пропал из панели
+   *  (/clients/get -> record not found), автоматически пересоздаём его (новый ref + reload),
+   *  а если панель недоступна — возвращаем понятную ошибку. */
   async profile(user, device) {
-    if (cfg.xui_base && device.provider === '3x-ui' && device.ref_id) {
+    if (!cfg.xui_base) return mockProfileFor(user, device);
+    let d = device;
+    try {
+      if (d.provider === 'pending' || !d.ref_id) {
+        await this.provisionDevice(user, d);
+        d = q.device(d.id);
+      }
+      return await xui.profileFor(d);
+    } catch (e) {
+      console.warn('[vpn] xui profile failed, re-ensuring client:', e.message);
       try {
-        return await xui.profileFor(device);
-      } catch (e) {
-        console.error('[vpn] xui profile failed, fallback mock:', e.message);
+        await this.provisionDevice(user, q.device(d.id), { force: true });
+        return await xui.profileFor(q.device(d.id));
+      } catch (e2) {
+        console.error('[vpn] xui profile failed even after re-ensure:', e2.message);
+        throw new Error('Профиль временно недоступен — попробуйте ещё раз через минуту');
       }
     }
-    return mockProfileFor(user, device);
   },
 
   /** Блокировка/включение устройства пользователем */
