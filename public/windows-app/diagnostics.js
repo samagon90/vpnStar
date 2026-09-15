@@ -271,6 +271,41 @@ function siteStatus(timeoutMs = 8000) {
   })();
 }
 
+// ---------- T7: захват прокси Chrome расширениями (read-only) ----------
+// Классика: VPN-расширение (Browsec/Hola/...) ставит свой PAC и Chrome игнорирует
+// системный прокси 127.0.0.1:10809 — туннель зелёный, а сайты не грузятся.
+const KNOWN_PROXY_EXTS = {
+  omghfjlpggmjjaagoclmmobgdodcjboh: 'Browsec VPN',
+  gkojfkhlekighikafcpjkiklfbnlmeio: 'Hola VPN',
+  bihmplhobchoageeokmgbdihknkjbknd: 'Touch VPN',
+  kpiecbcckbofpmkkkdibbllpinceiihk: 'DotVPN',
+  jaoafpkngncfpfggjefnekilbkcpjdgp: 'uVPN',
+};
+
+function chromeProxyCheck() {
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const base = process.env.LOCALAPPDATA;
+    if (!base) return { ok: true, ms: 0, extra: 'не Windows' };
+    const f = path.join(base, 'Google', 'Chrome', 'User Data', 'Default', 'Secure Preferences');
+    if (!fs.existsSync(f)) return { ok: true, ms: 0, extra: 'Chrome не найден' };
+    const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+    const settings = (j.extensions && j.extensions.settings) || {};
+    const hijackers = [];
+    for (const [id, v] of Object.entries(settings)) {
+      const proxy = v && v.preferences && v.preferences.proxy;
+      if (proxy && proxy.mode && proxy.mode !== 'direct' && proxy.mode !== 'system') {
+        hijackers.push(KNOWN_PROXY_EXTS[id] || id);
+      }
+    }
+    if (!hijackers.length) return { ok: true, ms: 0, extra: 'системный прокси' };
+    return { ok: false, ms: 0, extra: 'захват: ' + hijackers.join(', ') };
+  } catch (e) {
+    return { ok: true, ms: 0, extra: 'не прочитано' };
+  }
+}
+
 // ---------- сборка отчёта ----------
 
 function formatLine(r) {
@@ -286,7 +321,7 @@ async function runDiagnostics(profile, opts = {}) {
   const out = {
     time: new Date().toLocaleString('ru-RU'),
     profile: P && P.host ? P : null,
-    t1: null, t2: null, t3: null, t4: null, t5: null, t6: null,
+    t1: null, t2: null, t3: null, t4: null, t5: null, t6: null, t7: null,
     ms: 0,
   };
   if (P && P.host && P.port) {
@@ -305,6 +340,7 @@ async function runDiagnostics(profile, opts = {}) {
     out.t5 = await retried(() => httpsGetViaSocks('www.google.com', 443, '/generate_204', 10000, sHost, sPort));
   }
   out.t6 = await siteStatus(45000);
+  out.t7 = chromeProxyCheck();
   out.ms = Date.now() - t0;
   return out;
 }
@@ -321,6 +357,9 @@ function makeVerdict(d) {
   if (p) {
     if (tunnelOk) {
       v.push('Туннель РАБОТАЕТ: сайты через VPN грузятся. Если в браузере не грузится — нажми в приложении кнопку «🌐 Системный прокси: вкл», затем перезапусти браузер (Chrome/Edge подхватывают прокси без перезапуска, Firefox — только если стоит «Использовать системные настройки прокси»).');
+      if (d.t7 && !d.t7.ok) {
+        v.push('НАЙДЕН ЗАХВАТ ПРОКСИ CHROME: ' + d.t7.extra + ' — это расширение перебивает наш прокси. Открой chrome://extensions и ВЫКЛЮЧИ его тумблером (выключения внутри попапа недостаточно!), затем перезапусти Chrome.');
+      }
     } else if (directOk && d.t2 && d.t2.ok) {
       v.push('Сервер из вашей сети достижим, но туннель НЕ работает: xray не запущен, профиль не соответствует серверу или ключи старые. Возьмите свежий QR/ссылку из Кабинета.');
     } else if (directOk && d.t2 && d.t2.ok === false) {
@@ -363,6 +402,7 @@ function buildReport(d, extra = {}) {
   s.push(`T4 tunnel->www.youtube.com (dns via tunnel): ${formatLine(d.t4)}`);
   s.push(`T5 tunnel->google/generate_204: ${formatLine(d.t5)}`);
   s.push(`T6 site-status (RU): ${formatLine(d.t6)}`);
+  s.push(`T7 chrome-proxy: ${formatLine(d.t7)}`);
   if (extra.logTail) s.push('xray-log-tail:\n' + extra.logTail);
   s.push('verdict:');
   for (const line of makeVerdict(d)) s.push('  ' + line);
@@ -380,6 +420,7 @@ module.exports = {
   siteStatus,
   runDiagnostics,
   makeVerdict,
+  chromeProxyCheck,
   buildReport,
   formatLine,
   SOCKS_HOST,

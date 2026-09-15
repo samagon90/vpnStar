@@ -42,6 +42,7 @@ function renderDiag(d) {
   setCheck(3, d.t5);
   setCheck(4, d.t3);
   setCheck(5, d.t6);
+  setCheck(6, d.t7);
   if (d.verdict && d.verdict.length) {
     $('verdict').textContent = d.verdict.join('\n');
     $('verdict').style.display = 'block';
