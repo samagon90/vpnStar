@@ -13,6 +13,7 @@ import com.v2ray.ang.extension.toast
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.Utils
+import java.io.BufferedReader
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -61,13 +62,11 @@ class DebugActivity : BaseActivity() {
     private lateinit var copyButton: Button
     private var lastReport = ""
 
-    private val trustAllTrustManager = TrustManager(
-        object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>?, authType: String?) {}
-            override fun checkServerTrusted(chain: Array<X509Certificate>?, authType: String?) {}
-            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-        }
-    )
+    private val trustAllTrustManager = object : X509TrustManager {
+        override fun checkClientTrusted(chain: Array<X509Certificate>?, authType: String?) {}
+        override fun checkServerTrusted(chain: Array<X509Certificate>?, authType: String?) {}
+        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+    }
 
     private val trustAllSocketFactory: SSLSocketFactory by lazy {
         val ctx = SSLContext.getInstance("TLS")
@@ -347,7 +346,7 @@ class DebugActivity : BaseActivity() {
             val writer = PrintWriter(OutputStreamWriter(tls.getOutputStream(), Charsets.UTF_8), false)
             writer.print("GET $path HTTP/1.1\r\nHost: $domain\r\nUser-Agent: SonicVPN-Debug\r\nConnection: close\r\n\r\n")
             writer.flush()
-            val reader = InputStreamReader(tls.getInputStream(), Charsets.UTF_8)
+            val reader = BufferedReader(InputStreamReader(tls.getInputStream(), Charsets.UTF_8))
             val line = reader.readLine() ?: ""
             val ms = System.currentTimeMillis() - t0
             if (line.startsWith("HTTP/")) {

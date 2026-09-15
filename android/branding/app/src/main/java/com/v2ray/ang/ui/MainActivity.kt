@@ -103,6 +103,19 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
         toggle.syncState()
         binding.navView.setNavigationItemSelectedListener(this)
 
+        // SONIC-HIDE: в шторке оставляем только Настройки/Диагностика/О приложении.
+        // Удалять пункты из menu_drawer.xml НЕЛЬЗЯ: на их R.id ссылается код ниже.
+        intArrayOf(
+            R.id.sub_setting,
+            R.id.per_app_proxy_settings,
+            R.id.routing_setting,
+            R.id.user_asset_setting,
+            R.id.promotion,
+            R.id.logcat,
+            R.id.check_for_update,
+            R.id.backup_restore
+        ).forEach { binding.navView.menu.removeItem(it) }
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
@@ -247,6 +260,30 @@ class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelect
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
+
+        // SONIC-HIDE: прячем гиковские пункты (ручные конфиги, экспорт, массовые
+        // удаления, сортировки, подписки) — остаются QR, буфер, проверка, рестарт.
+        // Удалять пункты из menu_main.xml НЕЛЬЗЯ: на их R.id ссылается код ниже.
+        intArrayOf(
+            R.id.import_local,
+            R.id.import_manually_policy_group,
+            R.id.import_manually_proxy_chain,
+            R.id.import_manually_vmess,
+            R.id.import_manually_vless,
+            R.id.import_manually_ss,
+            R.id.import_manually_socks,
+            R.id.import_manually_http,
+            R.id.import_manually_trojan,
+            R.id.import_manually_wireguard,
+            R.id.import_manually_hysteria2,
+            R.id.export_all,
+            R.id.del_all_config,
+            R.id.del_duplicate_config,
+            R.id.del_invalid_config,
+            R.id.sort_by_test_results,
+            R.id.sub_update,
+            R.id.locate_selected_config
+        ).forEach { menu.removeItem(it) }
 
         val searchItem = menu.findItem(R.id.search_view)
         if (searchItem != null) {

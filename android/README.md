@@ -54,11 +54,15 @@ android/
     res/layout/activity_main.xml           главный экран в духе Happ: гигантская кнопка
                                      по центру + крупный статус (все android:id
                                      1:1 с v2rayNG 2.2.6, иначе не соберётся)
-    res/menu/menu_drawer.xml               drawer: ТОЛЬКО Настройки/Диагностика/О приложении
-                                     (урезано 15.09.2026: убраны подписки, per-app, маршруты, реклама,
-                                     logcat, проверка обновлений, бэкап)
-    res/menu/menu_main.xml                 верхнее меню: ТОЛЬКО QR/Из буфера/Проверить/Перезапуск
-                                     (урезано 15.09.2026: убраны ручные конфиги, экспорт, удаления)
+    res/menu/menu_drawer.xml               drawer v2rayNG 1:1 + пункт «Диагностика»;
+                                     лишнее (подписки, per-app, маршруты, реклама,
+                                     logcat, обновления, бэкап) скрывается в коде
+                                     (setupNavigationDrawer, SONIC-HIDE) — из XML
+                                     удалять НЕЛЬЗЯ (R.id использует код)
+    res/menu/menu_main.xml                 верхнее меню v2rayNG 1:1; лишнее скрывается
+                                     в коде (onCreateOptionsMenu, SONIC-HIDE):
+                                     видны только QR / Из буфера / Проверить /
+                                     Перезапуск. Там же правило: пункты из XML не удалять.
     main/java/com/v2ray/ang/ui/DebugActivity.kt   режим отладки (проверки + отчёт)
     main/java/com/v2ray/ang/ui/MainActivity.kt   +1 строка: пункт меню → DebugActivity
     main/AndroidManifest.xml                 + DebugActivity
