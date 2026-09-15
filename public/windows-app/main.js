@@ -35,6 +35,55 @@ let state = 'disconnected'; // disconnected | connecting | connected
 let currentLink = '';
 let autoconnect = false;
 
+// ---------- автопереподключение (обрывы TSPU, смена сети, сон) ----------
+let manualStop = true; // true — пользователь сам отключил/выходит, переподключаться не надо
+let reconnectTimer = null;
+let reconnectAttempt = 0;
+let watchdogMiss = 0;
+const RECONNECT_BACKOFF = [2000, 5000, 15000, 30000, 60000];
+
+function clearReconnect() {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+}
+
+function scheduleReconnect(reason) {
+  clearReconnect();
+  if (manualStop || !currentLink) return;
+  lastFailReason = reason;
+  reconnectAttempt += 1;
+  if (reconnectAttempt > 5) {
+    reconnectAttempt = 0;
+    state = 'disconnected';
+    send('status', { state: 'disconnected', message: 'Не переподключается после 5 попыток (' + reason + ') — обновите ссылку из Кабинета и нажмите «Подключить»' });
+    return;
+  }
+  const delay = RECONNECT_BACKOFF[Math.min(reconnectAttempt - 1, RECONNECT_BACKOFF.length - 1)];
+  state = 'connecting';
+  send('status', { state: 'connecting', message: `Соединение потеряно (${reason}). Переподключение — попытка ${reconnectAttempt}…` });
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    startProxy(currentLink, { auto: true }).catch(() => scheduleReconnect(lastFailReason));
+  }, delay);
+}
+
+let lastFailReason = 'обрыв соединения';
+
+// сторож: раз в 20с проверяем локальный SOCKS; дважды мимо — пересоздаём туннель
+setInterval(async () => {
+  if (state !== 'connected' || manualStop || !currentLink) { watchdogMiss = 0; return; }
+  try {
+    const r = await tcpProbe('127.0.0.1', SOCKS_PORT, 3000);
+    if (r.ok) { watchdogMiss = 0; return; }
+  } catch { /* мимо */ }
+  watchdogMiss += 1;
+  if (watchdogMiss >= 2) {
+    watchdogMiss = 0;
+    reconnectAttempt = 0;
+    stopXrayProcess();
+    scheduleReconnect('локальный прокси не отвечает');
+  }
+}, 20000);
+
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
@@ -223,7 +272,9 @@ async function waitForSocks(timeoutMs = 15000) {
   return false;
 }
 
-async function startProxy(link) {
+async function startProxy(link, opts = {}) {
+  manualStop = false;
+  clearReconnect();
   state = 'connecting';
   send('status', { state, message: 'Подключаем…' });
   try {
@@ -254,10 +305,16 @@ async function startProxy(link) {
       state = 'disconnected';
     });
     xrayProc.on('exit', (code) => {
-      if (state === 'connected' || state === 'connecting') {
-        state = 'disconnected';
-        send('status', { state: 'disconnected', message: `xray завершился (код ${code}) — смотрите «Режим отладки»` });
+      if (manualStop || !currentLink) {
+        if (state === 'connected' || state === 'connecting') {
+          state = 'disconnected';
+          send('status', { state: 'disconnected', message: 'Отключено' });
+        }
+        return;
       }
+      // упал сам (обрыв сети/TSPU/сон) — переподключаемся, а не висим мёртвым
+      stopXrayProcess();
+      scheduleReconnect('xray завершился, код ' + code);
     });
 
     const up = await waitForSocks(15000);
@@ -268,6 +325,8 @@ async function startProxy(link) {
     const proxyOk = await setSystemProxy(true);
     currentLink = link;
     state = 'connected';
+    reconnectAttempt = 0;
+    watchdogMiss = 0;
     send('status', {
       state: 'connected',
       message: proxyOk
@@ -280,6 +339,14 @@ async function startProxy(link) {
     stopXrayProcess();
     await setSystemProxy(false).catch(() => {});
     send('status', { state: 'disconnected', message: e.message });
+    if (opts.auto) {
+      // авто-попытка не удалась — продолжаем цикл переподключения
+      scheduleReconnect(lastFailReason);
+    } else {
+      // ручная попытка провалилась — стоим, ждём пользователя (без самодеятельности)
+      manualStop = true;
+      clearReconnect();
+    }
     throw e;
   }
 }
@@ -298,6 +365,10 @@ function stopXrayProcess() {
 }
 
 async function stopProxy() {
+  manualStop = true;
+  clearReconnect();
+  reconnectAttempt = 0;
+  watchdogMiss = 0;
   stopXrayProcess();
   await setSystemProxy(false).catch(() => {});
   state = 'disconnected';
@@ -427,6 +498,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  manualStop = true;
+  clearReconnect();
   stopXrayProcess();
   try { setSystemProxy(false); } catch { /* ignore */ }
 });
