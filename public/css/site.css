@@ -11,31 +11,23 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   background:var(--bg);color:var(--txt);line-height:1.6;overflow-x:hidden;min-height:100vh;
 }
+/* Статичный фон: 3 дешёвых градиента без анимации.
+   Было: 10 radial-градиентов + бесконечная анимация background-position на
+   фиксированном полноэкранном слое = перерисовка всего экрана вечно (лаг и на ПК, и на телефоне). */
 .sky{position:fixed;inset:0;z-index:0;pointer-events:none;
   background:
-    radial-gradient(1px 1px at 12% 22%,rgba(255,255,255,.9),transparent 55%),
-    radial-gradient(1px 1px at 28% 68%,rgba(255,255,255,.7),transparent 55%),
-    radial-gradient(1.5px 1.5px at 41% 12%,rgba(255,255,255,.8),transparent 55%),
-    radial-gradient(1px 1px at 57% 44%,rgba(255,255,255,.6),transparent 55%),
-    radial-gradient(1.5px 1.5px at 71% 78%,rgba(255,255,255,.85),transparent 55%),
-    radial-gradient(1px 1px at 84% 31%,rgba(255,255,255,.7),transparent 55%),
-    radial-gradient(1px 1px at 93% 62%,rgba(255,255,255,.6),transparent 55%),
-    radial-gradient(1.5px 1.5px at 8% 85%,rgba(255,255,255,.75),transparent 55%),
-    radial-gradient(1px 1px at 48% 92%,rgba(255,255,255,.65),transparent 55%),
-    radial-gradient(1px 1px at 66% 8%,rgba(255,255,255,.8),transparent 55%);
-  background-size:620px 620px;animation:drift 240s linear infinite;
+    radial-gradient(900px 480px at 78% -10%,rgba(30,111,255,.28),transparent 65%),
+    radial-gradient(700px 420px at 12% 8%,rgba(69,184,255,.14),transparent 60%),
+    radial-gradient(1px 1px at 30% 60%,rgba(255,255,255,.5),transparent 60%);
 }
-.sky::after{content:"";position:absolute;inset:0;
-  background:radial-gradient(900px 480px at 78% -10%,rgba(30,111,255,.28),transparent 65%),
-             radial-gradient(700px 420px at 12% 8%,rgba(69,184,255,.14),transparent 60%);}
-@keyframes drift{from{background-position:0 0}to{background-position:620px 310px}}
 .wrap{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:0 20px}
 .wrap-narrow{max-width:720px}
 
-header{position:sticky;top:0;z-index:50;background:rgba(7,11,22,.75);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.06)}
+/* Сплошная шапка без backdrop-blur: блюр под sticky-шапкой заставляет браузер
+   переразмывать всё под ней на каждом кадре скролла — главный источник рывков. */
+header{position:sticky;top:0;z-index:50;background:#0b1120;border-bottom:1px solid rgba(255,255,255,.06)}
 .nav{display:flex;align-items:center;justify-content:space-between;height:64px}
 .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.25rem;text-decoration:none;color:var(--txt)}
-.logo img{width:34px;height:34px;border-radius:9px;box-shadow:0 4px 18px rgba(30,111,255,.45)}
 nav ul{display:flex;gap:26px;list-style:none}
 nav a{color:var(--muted);text-decoration:none;font-size:.95rem;transition:color .2s}
 nav a:hover{color:var(--txt)}
@@ -43,8 +35,6 @@ nav a:hover{color:var(--txt)}
 .btn{display:inline-block;padding:12px 22px;border-radius:12px;font-weight:700;text-decoration:none;font-size:.95rem;transition:transform .15s,box-shadow .15s,opacity .15s;cursor:pointer;border:none;color:var(--txt);background:rgba(255,255,255,.06)}
 .btn:disabled{opacity:.5;cursor:default}
 .btn-primary{background:var(--grad);color:#fff;box-shadow:0 6px 24px rgba(30,111,255,.4)}
-.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 30px rgba(30,111,255,.55)}
-.btn-ghost:hover:not(:disabled){background:rgba(255,255,255,.1)}
 .btn-sm{padding:8px 14px;font-size:.85rem;border-radius:10px}
 .btn-block{display:block;width:100%;text-align:center}
 .nav .btn{padding:9px 18px}
@@ -75,8 +65,7 @@ section{padding:56px 0}
 .step p{color:var(--muted);font-size:.93rem}
 
 .pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.plan{background:var(--card);border:1px solid var(--card-b);border-radius:var(--r);padding:28px 24px;display:flex;flex-direction:column;position:relative;transition:transform .15s,border-color .15s}
-.plan:hover{transform:translateY(-4px);border-color:rgba(30,111,255,.5)}
+.plan{background:var(--card);border:1px solid var(--card-b);border-radius:var(--r);padding:28px 24px;display:flex;flex-direction:column;position:relative;transition:border-color .15s}
 .plan.pop{border-color:rgba(30,111,255,.65);background:linear-gradient(180deg,rgba(30,111,255,.12),rgba(255,255,255,.03))}
 .plan .tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--grad);color:#fff;font-size:.75rem;font-weight:700;padding:4px 14px;border-radius:99px;white-space:nowrap}
 .plan .dur{color:var(--muted);font-weight:600;font-size:.9rem}
@@ -162,35 +151,35 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:34px 0;margin-top:40px
 .f-logo img{width:26px;height:26px;border-radius:7px}
 .disclaimer{margin-top:18px;font-size:.78rem;color:#5b6478;max-width:860px}
 
-/* ===== анимации и акценты ===== */
-@keyframes fadeUp{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
-@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-@keyframes glowPulse{0%,100%{box-shadow:0 10px 40px rgba(30,111,255,.5)}50%{box-shadow:0 16px 64px rgba(69,184,255,.8)}}
+/* ===== лёгкие одноразовые эффекты (без бесконечных анимаций) ===== */
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 
-/* логотип крупнее и «живой» */
-.logo img{width:40px;height:40px;border-radius:11px;box-shadow:0 4px 22px rgba(30,111,255,.55);animation:glowPulse 3.5s ease-in-out infinite}
-/* фон-водяной знак: за контентом, еле заметный, медленно парит */
+/* статичный логотип: была бесконечная анимация box-shadow (перерисовка в шапке вечно) */
+.logo img{width:40px;height:40px;border-radius:11px;box-shadow:0 4px 22px rgba(30,111,255,.45)}
+/* фон-водяной знак: статичный, без парения */
 .hero{position:relative}
 .hero-logo{position:absolute;top:110px;left:50%;transform:translateX(-50%);z-index:-1;margin:0;pointer-events:none}
-.hero-logo img{width:min(380px,64vw);height:min(380px,64vw);border-radius:72px;opacity:.07;animation:floaty 9s ease-in-out infinite}
-.hero .badge{animation:fadeUp .7s .08s cubic-bezier(.2,.7,.3,1) both}
-.hero h1{animation:fadeUp .7s .16s cubic-bezier(.2,.7,.3,1) both}
-.hero p.sub{animation:fadeUp .7s .24s cubic-bezier(.2,.7,.3,1) both}
-.hero-cta{animation:fadeUp .7s .32s cubic-bezier(.2,.7,.3,1) both}
-.hero .stats{animation:fadeUp .7s .4s cubic-bezier(.2,.7,.3,1) both}
+.hero-logo img{width:min(380px,64vw);height:min(380px,64vw);border-radius:72px;opacity:.07}
+/* появление hero — один быстрый прогон без каскада задержек */
+.hero{animation:fadeUp .45s ease both}
 
-/* появление при прокрутке */
-.reveal{opacity:0;transform:translateY(26px);transition:opacity .6s cubic-bezier(.2,.7,.3,1),transform .6s cubic-bezier(.2,.7,.3,1),border-color .15s,box-shadow .15s}
-.reveal.in{opacity:1;transform:none}
+/* появление при прокрутке: только opacity (самый дешёвый переход, без сдвига) */
+.reveal{opacity:0;transition:opacity .35s ease}
+.reveal.in{opacity:1}
 
-/* блик по кнопке */
-.btn-primary{position:relative;overflow:hidden}
-.btn-primary::after{content:"";position:absolute;top:0;left:-80%;width:50%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-20deg);transition:left .55s ease}
-.btn-primary:hover::after{left:135%}
+/* блик по кнопке и подъём карточек — только для мыши; на тачскринах от них лаги и залипшие состояния */
+@media (hover:hover){
+  .btn-primary{position:relative;overflow:hidden}
+  .btn-primary::after{content:"";position:absolute;top:0;left:-80%;width:50%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-20deg);transition:left .55s ease}
+  .btn-primary:hover::after{left:135%}
+  .btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 30px rgba(30,111,255,.55)}
+  .plan:hover{transform:translateY(-4px);border-color:rgba(30,111,255,.5)}
+  .btn-ghost:hover:not(:disabled){background:rgba(255,255,255,.1)}
+}
 
 /* секция приложения */
 .app-card{display:flex;gap:32px;align-items:center;background:linear-gradient(135deg,rgba(30,111,255,.16),rgba(255,255,255,.03));border:1px solid rgba(30,111,255,.45);border-radius:22px;padding:36px;max-width:840px;margin:0 auto}
-.app-logo img{width:112px;height:112px;border-radius:26px;box-shadow:0 12px 46px rgba(30,111,255,.55);animation:floaty 5s ease-in-out infinite}
+.app-logo img{width:112px;height:112px;border-radius:26px;box-shadow:0 12px 46px rgba(30,111,255,.45)}
 .app-info h3{font-size:1.35rem;margin-bottom:8px}
 .app-info>p{color:var(--muted);margin-bottom:18px}
 .app-btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
@@ -215,6 +204,8 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:34px 0;margin-top:40px
   .hero-logo{top:48px}
   .hero-logo img{width:min(230px,78vw);height:min(230px,78vw);border-radius:48px;opacity:.06}
   .app-logo img{width:80px;height:80px}
+  /* на телефоне прячем колонку Email в реферальной таблице */
+  .hide-m{display:none!important}
 }
 /* уважение к настройкам пользователя: без анимаций при желании */
 @media (prefers-reduced-motion: reduce){

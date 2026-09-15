@@ -214,3 +214,50 @@ export function destroySession(req) {
   const token = req.cookies && req.cookies.vs_session;
   if (token) db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
 }
+
+// --- администраторы панели (вход по логину/паролю, вместо/вместе с ADMIN_TOKEN) ---
+db.exec(`
+CREATE TABLE IF NOT EXISTS admins(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS admin_sessions(
+  token TEXT PRIMARY KEY,
+  admin_id INTEGER NOT NULL REFERENCES admins(id),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+`);
+
+export const qAdmin = {
+  count: () => Number(db.prepare('SELECT COUNT(*) c FROM admins').get().c),
+  byName: (name) => db.prepare('SELECT * FROM admins WHERE username = ?').get(name),
+  byId: (id) => db.prepare('SELECT * FROM admins WHERE id = ?').get(Number(id)),
+  all: () => db.prepare('SELECT id, username, created_at FROM admins ORDER BY id ASC').all(),
+  insert: (username, passwordHash) => {
+    const r = db.prepare('INSERT INTO admins(username, password_hash, created_at) VALUES(?,?,?)')
+      .run(username, passwordHash, nowISO());
+    return Number(r.lastInsertRowid);
+  },
+  del: (id) => db.prepare('DELETE FROM admins WHERE id = ?').run(Number(id)),
+};
+
+export function createAdminSession(adminId, ttlDays = 30) {
+  const token = crypto.randomBytes(32).toString('hex');
+  db.prepare('INSERT INTO admin_sessions(token, admin_id, created_at, expires_at) VALUES(?,?,?,?)')
+    .run(token, Number(adminId), nowISO(), addDays(nowISO(), ttlDays));
+  return token;
+}
+export function getAdminSession(req) {
+  const token = req.cookies && req.cookies.vs_admin;
+  if (!token) return null;
+  const row = db.prepare(`SELECT a.* FROM admin_sessions s JOIN admins a ON a.id = s.admin_id
+    WHERE s.token = ? AND s.expires_at > ?`).get(token, nowISO());
+  return row || null;
+}
+export function destroyAdminSession(req) {
+  const token = req.cookies && req.cookies.vs_admin;
+  if (token) db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+}

@@ -72,10 +72,32 @@ tr:hover td{background:#131c30}
 <!-- Вход -->
 <div id="gate">
   <h1>🛡️ Sonic VPN · Админка</h1>
-  <p class="sub" style="margin:6px 0 18px">Вход только по токену из <code>ADMIN_TOKEN</code> в .env</p>
-  <label>Токен</label>
-  <input id="tok" type="password" placeholder="вставьте токен" autocomplete="off">
-  <button class="btn" id="login">Войти</button>
+  <p class="sub" id="gateSub" style="margin:6px 0 18px">Вход для администраторов</p>
+
+  <!-- первичное создание -->
+  <div id="setupBox" class="hidden">
+    <p class="sub" style="margin-bottom:12px">Администраторов пока нет — создайте первого (один раз):</p>
+    <label>Логин</label>
+    <input id="su" placeholder="admin" autocomplete="username">
+    <label>Пароль</label>
+    <input id="sp" type="password" placeholder="минимум 8 символов" autocomplete="new-password">
+    <button class="btn" id="setupBtn">Создать администратора</button>
+  </div>
+
+  <!-- обычный вход -->
+  <div id="loginBox" class="hidden">
+    <label>Логин</label>
+    <input id="au" placeholder="admin" autocomplete="username">
+    <label>Пароль</label>
+    <input id="ap" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')ADMIN.login()">
+    <button class="btn" id="loginBtn">Войти</button>
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;color:var(--mut);font-size:13px">Вход по мастер-токену (.env)</summary>
+      <label style="margin-top:8px">Токен</label>
+      <input id="tok" type="password" placeholder="ADMIN_TOKEN" autocomplete="off">
+      <button class="btn ghost" id="tokBtn" style="margin-top:8px">Войти по токену</button>
+    </details>
+  </div>
   <p class="err" id="gateErr" style="margin-top:10px"></p>
 </div>
 
@@ -111,6 +133,25 @@ tr:hover td{background:#131c30}
   </div>
 
   <div class="panel">
+    <h2>🛡️ Администраторы</h2>
+    <div id="admins"></div>
+    <div class="row" style="margin-top:10px">
+      <div><label>Логин</label><input id="aUser" placeholder="moder1" style="width:150px"></div>
+      <div><label>Пароль</label><input id="aPass" type="password" placeholder="минимум 8 символов" style="width:170px"></div>
+      <button class="btn" onclick="ADMIN.addAdmin()">Добавить</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>💰 Учёт оплат <button class="btn ghost" style="padding:4px 10px;font-size:12px" onclick="ADMIN.loadPayments()">Обновить</button></h2>
+    <p class="mut" style="margin-bottom:10px;font-size:12.5px">Все оплаты: ЮKassa, баланс, ручные (наличные/перевод). Ручную оплату вносите кнопкой «+оплата» у клиента.</p>
+    <table>
+      <thead><tr><th>Дата</th><th>Клиент</th><th>Сумма</th><th>Способ</th><th>Статус</th></tr></thead>
+      <tbody id="pay-body"><tr><td colspan="5" class="mut">Загрузите список →</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
     <h2>🔌 Активные подключения <span class="mut" style="font-weight:400">(3x-ui: клиенты с трафиком)</span><button class="btn ghost" style="padding:4px 10px;font-size:12px" onclick="ADMIN.loadOnline()">Обновить</button></h2>
     <p class="mut" style="margin-bottom:10px;font-size:12.5px">Относится к клиентам панели; загружено из /panel/api/inbounds/list. Точный «живой» статус каждого устройства панель отдаёт только в своём UI.</p>
     <table>
@@ -138,11 +179,13 @@ const ADMIN = {
   date: (iso) => iso ? new Date(iso).toLocaleDateString('ru-RU') : '—',
 
   async api(path, opts = {}) {
-    opts.headers = Object.assign({'Content-Type': 'application/json', 'x-admin-token': this.tok}, opts.headers || {});
+    const h = { 'Content-Type': 'application/json' };
+    if (this.tok) h['x-admin-token'] = this.tok; // legacy-вход по токену
+    opts.headers = Object.assign(h, opts.headers || {});
     const r = await fetch('/api/admin' + path, opts);
     let d = {};
     try { d = await r.json(); } catch {}
-    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    if (!r.ok) { const e = new Error(d.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
     return d;
   },
 
@@ -151,8 +194,21 @@ const ADMIN = {
     t.textContent = msg; t.classList.add('show');
     clearTimeout(this._tt); this._tt = setTimeout(() => t.classList.remove('show'), 2600);
   },
-  copy(text, el) {
-    navigator.clipboard.writeText(text).then(() => this.toast('Скопировано ✓')).catch(() => this.toast('Не удалось скопировать'));
+  async copy(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try { await navigator.clipboard.writeText(text); this.toast('Скопировано ✓'); return; } catch { /* fallback */ }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      if (document.execCommand('copy')) { ta.remove(); this.toast('Скопировано ✓'); return; }
+      ta.remove();
+    } catch { /* ignore */ }
+    this.toast('Не удалось скопировать — выделите текст в поле вручную');
   },
 
   rand(id) {
@@ -165,27 +221,99 @@ const ADMIN = {
     }
   },
 
+  async boot() {
+    try {
+      const st = await this.api('/auth-state');
+      if (st.logged_in) return this.showApp();
+      document.getElementById('gate').classList.remove('hidden');
+      document.getElementById(st.setup_needed ? 'setupBox' : 'loginBox').classList.remove('hidden');
+    } catch (e) {
+      document.getElementById('gateErr').textContent = 'Сервер недоступен: ' + e.message;
+    }
+  },
+  async setup() {
+    const u = document.getElementById('su').value.trim();
+    const p = document.getElementById('sp').value;
+    try {
+      await this.api('/setup', { method: 'POST', body: JSON.stringify({ username: u, password: p }) });
+      this.showApp();
+    } catch (e) {
+      document.getElementById('gateErr').textContent = e.message;
+    }
+  },
   async login() {
+    const u = document.getElementById('au').value.trim();
+    const p = document.getElementById('ap').value;
+    try {
+      await this.api('/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) });
+      this.showApp();
+    } catch (e) {
+      document.getElementById('gateErr').textContent = e.message;
+    }
+  },
+  async tokenLogin() {
     const tok = document.getElementById('tok').value.trim();
     if (!tok) return;
+    this.tok = tok;
     try {
       await this.api('/stats');
       sessionStorage.setItem('vs_admin', tok);
-      this.tok = tok;
       this.showApp();
     } catch (e) {
+      this.tok = '';
       document.getElementById('gateErr').textContent = 'Неверный токен. Проверьте ADMIN_TOKEN в .env';
     }
   },
-  logout() {
+  async logout() {
+    try { await this.api('/logout', { method: 'POST' }); } catch { /* ignore */ }
     sessionStorage.removeItem('vs_admin');
     this.tok = '';
     location.reload();
   },
-  showApp() {
+  showGate() {
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('gate').classList.remove('hidden');
+    document.getElementById('loginBox').classList.remove('hidden');
+  },
+  async showApp() {
     document.getElementById('gate').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
+    try {
+      const me = await this.api('/me');
+      document.getElementById('who').textContent = me.admin ? ('вы: ' + me.admin.username) : 'вход по токену';
+      if (me.admin) this.loadAdmins();
+    } catch { /* ignore */ }
     this.refresh();
+  },
+  async loadAdmins() {
+    try {
+      const d = await this.api('/admins');
+      document.getElementById('admins').innerHTML = d.admins.map((a) =>
+        `<div class="line"><b>${this.esc(a.username)}</b><span class="mut">id ${a.id} · ${this.date(a.created_at)}</span>
+        ${d.me && d.me.id !== a.id ? `<button class="btn ghost del" style="padding:2px 8px" onclick="ADMIN.delAdmin(${a.id})">✕</button>` : '<span class="mut">(это вы)</span>'}</div>`
+      ).join('') || '<p class="mut">Нет администраторов</p>';
+    } catch (e) {
+      document.getElementById('admins').innerHTML = '<p class="err">' + this.esc(e.message) + '</p>';
+    }
+  },
+  async addAdmin() {
+    const u = document.getElementById('aUser').value.trim();
+    const p = document.getElementById('aPass').value;
+    try {
+      await this.api('/admins', { method: 'POST', body: JSON.stringify({ username: u, password: p }) });
+      document.getElementById('aUser').value = '';
+      document.getElementById('aPass').value = '';
+      this.toast('Администратор добавлен ✓');
+      this.loadAdmins();
+    } catch (e) { this.toast(e.message); }
+  },
+  async delAdmin(id) {
+    if (!confirm('Удалить администратора?')) return;
+    try {
+      await this.api('/admins/' + id, { method: 'DELETE' });
+      this.toast('Удалён');
+      this.loadAdmins();
+    } catch (e) { this.toast(e.message); }
   },
 
   kindLabel(k) {
@@ -203,8 +331,9 @@ const ADMIN = {
         <div class="card"><div class="v">${s.devices_active}</div><div class="k">активных устройств</div></div>
         <div class="card"><div class="v ok">${this.money(s.total_paid_cents)}</div><div class="k">привлечено</div></div>`;
       await this.loadUsers();
+      await this.loadPayments();
     } catch (e) {
-      if (String(e.message).includes('токен')) this.logout();
+      if (e.status === 401) { this.tok = ''; sessionStorage.removeItem('vs_admin'); this.showGate(); }
     }
   },
 
@@ -277,6 +406,7 @@ const ADMIN = {
         <td>${u.referrals}</td>
         <td><div class="act">
           <button onclick="ADMIN.showDevices(${u.id},'${this.esc(u.username)}')" title="QR-коды устройств">📷 QR</button>
+          <button onclick="ADMIN.payManual(${u.id},'${this.esc(u.username)}')" title="Внести оплату вручную (наличные/перевод)">+оплата</button>
           <button onclick="ADMIN.extend(${u.id})" title="Продлить подписку">+дни</button>
           <button onclick="ADMIN.pw(${u.id},'${this.esc(u.username)}')" title="Сменить пароль">🔑</button>
           <button class="del" onclick="ADMIN.del(${u.id},'${this.esc(u.username)}')" title="Удалить">✕</button>
@@ -334,6 +464,47 @@ const ADMIN = {
     btn.disabled = false; btn.textContent = 'Сгенерировать';
   },
 
+  async loadPayments() {
+    const tb = document.getElementById('pay-body');
+    tb.innerHTML = '<tr><td colspan="5" class="mut">Загружаю…</td></tr>';
+    try {
+      const d = await this.api('/payments?limit=100');
+      if (!d.payments.length) { tb.innerHTML = '<tr><td colspan="5" class="mut">Оплат пока нет</td></tr>'; return; }
+      const st = { paid: '<span class="pill plan">оплачен</span>', pending: '<span class="pill trial">ожидание</span>', refunded: '<span class="pill off">возврат</span>', failed: '<span class="pill off">сбой</span>' };
+      tb.innerHTML = d.payments.map((p) => `
+        <tr>
+          <td class="mut">${this.date(p.paid_at || p.created_at)}</td>
+          <td><b>${this.esc(p.username)}</b></td>
+          <td>${this.esc(p.amount)}</td>
+          <td>${this.esc(p.method)}${p.bonus_cents ? `<br><span class="mut" style="font-size:11px">+${this.money(p.bonus_cents)} рефереру</span>` : ''}</td>
+          <td>${st[p.status] || this.esc(p.status)}</td>
+        </tr>`).join('');
+    } catch (e) {
+      tb.innerHTML = '<tr><td colspan="5" class="err">' + this.esc(e.message) + '</td></tr>';
+    }
+  },
+
+  async payManual(id, name) {
+    const amount = prompt('Сумма оплаты в рублях (клиент ' + name + ')?', '249');
+    if (amount === null) return;
+    const rub = Math.round(Number(String(amount).replace(',', '.')));
+    if (!rub || rub < 1) return this.toast('Некорректная сумма');
+    const m = prompt('Способ: 1 — Наличные, 2 — Перевод/безнал, 3 — СБП вручную', '1');
+    if (m === null) return;
+    const method = { 1: 'cash', 2: 'transfer', 3: 'sbp' }[m.trim()] || 'cash';
+    const t = prompt('Какой срок начислить: 1 — 1 месяц, 3 — 3 месяца, 6 — 6 месяцев', '1');
+    if (t === null) return;
+    const planId = { 1: 1, 3: 2, 6: 3 }[t.trim()] || 1;
+    try {
+      const d = await this.api('/users/' + id + '/payment', {
+        method: 'POST', body: JSON.stringify({ amount_rub: rub, method, plan_id: planId }),
+      });
+      this.toast(`Принято ${d.amount} (${d.method}), подписка до ${this.date(d.expires_at)} ✓`);
+      this.refresh();
+      this.loadPayments();
+    } catch (e) { this.toast(e.message); }
+  },
+
   async extend(id) {
     const s = prompt('Продлить на сколько дней? (1–365)', '30');
     if (s === null) return;
@@ -365,11 +536,12 @@ const ADMIN = {
   },
 };
 
-document.getElementById('login').onclick = () => ADMIN.login();
-document.getElementById('tok').addEventListener('keydown', (e) => { if (e.key === 'Enter') ADMIN.login(); });
-if (ADMIN.tok) {
-  ADMIN.api('/stats').then(() => ADMIN.showApp()).catch(() => { sessionStorage.removeItem('vs_admin'); ADMIN.tok = ''; });
-}
+document.getElementById('setupBtn').onclick = () => ADMIN.setup();
+document.getElementById('loginBtn').onclick = () => ADMIN.login();
+document.getElementById('tokBtn').onclick = () => ADMIN.tokenLogin();
+document.getElementById('ap').addEventListener('keydown', (e) => { if (e.key === 'Enter') ADMIN.login(); });
+ADMIN.tok = sessionStorage.getItem('vs_admin') || ''; // legacy-вход по токену
+ADMIN.boot();
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ADMIN.closeModal(); });
 </script>
 </body>

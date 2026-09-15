@@ -51,7 +51,11 @@ android/
     res/values/ic_launcher_background.xml  фон адаптивной иконки
     res/values/strings_debug.xml           строки режима отладки
     res/layout/activity_debug.xml          экран «Диагностика»
-    res/menu/menu_drawer.xml               drawer + пункт «Диагностика»
+    res/menu/menu_drawer.xml               drawer: ТОЛЬКО Настройки/Диагностика/О приложении
+                                     (урезано 15.09.2026: убраны подписки, per-app, маршруты, реклама,
+                                     logcat, проверка обновлений, бэкап)
+    res/menu/menu_main.xml                 верхнее меню: ТОЛЬКО QR/Из буфера/Проверить/Перезапуск
+                                     (урезано 15.09.2026: убраны ручные конфиги, экспорт, удаления)
     main/java/com/v2ray/ang/ui/DebugActivity.kt   режим отладки (проверки + отчёт)
     main/java/com/v2ray/ang/ui/MainActivity.kt   +1 строка: пункт меню → DebugActivity
     main/AndroidManifest.xml                 + DebugActivity

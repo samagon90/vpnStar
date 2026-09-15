@@ -102,6 +102,7 @@ $('connect-btn').addEventListener('click', async () => {
     setMsg('Подключено. Теперь открой сайты в браузере (Chrome/Edge) — они пойдут через VPN.', 'ok');
     renderDiag(r.diag);
     renderReport(r.report);
+    refreshProxyBtn();
   } catch (e) {
     setStatus('disconnected', e.message);
     setMsg(e.message, 'err');
@@ -113,6 +114,49 @@ $('disconnect-btn').addEventListener('click', async () => {
   const r = await window.sonic.disconnect();
   setStatus('disconnected');
   setMsg(r.ok ? 'Отключено. Системный прокси снят.' : 'Ошибка отключения', r.ok ? 'ok' : 'err');
+  refreshProxyBtn();
+});
+
+// ---------- системный прокси (кнопка: браузеры идут через VPN только когда он вкл) ----------
+
+async function refreshProxyBtn() {
+  const btn = $('proxy-btn');
+  const hint = $('proxy-hint');
+  try {
+    const s = await window.sonic.proxyGet();
+    if (!s || !s.ok) {
+      btn.textContent = '🌐 Системный прокси: ?';
+      hint.textContent = 'не удалось прочитать состояние';
+      return null;
+    }
+    const on = !!s.enabled;
+    btn.textContent = on ? '🌐 Системный прокси: вкл' : '🌐 Системный прокси: выкл';
+    hint.textContent = on ? ('браузеры через VPN (' + (s.server || 'прокси') + ')') : 'браузеры идут напрямую — нажми, чтобы пустить через VPN';
+    return on;
+  } catch {
+    btn.textContent = '🌐 Системный прокси: ?';
+    return null;
+  }
+}
+
+$('proxy-btn').addEventListener('click', async () => {
+  const btn = $('proxy-btn');
+  btn.disabled = true;
+  try {
+    const cur = await window.sonic.proxyGet();
+    const target = !(cur && cur.ok && cur.enabled);
+    const r = await window.sonic.proxySet(target);
+    if (!r || !r.ok) {
+      setMsg('Не получилось переключить системный прокси', 'err');
+    } else {
+      setMsg(target ? 'Системный прокси включён — обнови вкладки браузера.' : 'Системный прокси выключен — браузеры идут напрямую.', 'ok');
+    }
+  } catch (e) {
+    setMsg(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    refreshProxyBtn();
+  }
 });
 
 $('auto-cb').addEventListener('change', () => {
@@ -143,6 +187,7 @@ $('copy-btn').addEventListener('click', async () => {
 
 window.sonic.onStatus((p) => {
   setStatus(p.state, p.message);
+  if (p.state === 'connected' || p.state === 'disconnected') refreshProxyBtn();
 });
 window.sonic.onCoreProgress((p) => {
   const bar = $('core-progress-bar');
@@ -157,4 +202,5 @@ window.sonic.onCoreProgress((p) => {
 });
 
 setStatus('disconnected');
+refreshProxyBtn();
 initProfile();

@@ -17,10 +17,12 @@ function buildXrayConfig(link, opts = {}) {
 
   // reality-настройки ровно в форме, проверенной на v26.7.28 (см. deploy/diag-ru.sh):
   // serverName — СТРОКА (не serverNames-массив!), fingerprint, publicKey, shortId, show.
+  // fingerprint по умолчанию safari: chrome-hello (>MTU) режется на путях из РФ (проверено
+  // вживую 15.09.2026: chrome=таймаут, safari=ОК на том же маршруте).
   const realitySettings = {
     show: false,
     serverName: p.sni,
-    fingerprint: p.fp || 'chrome',
+    fingerprint: p.fp || 'safari',
     publicKey: p.pbk || '',
     shortId: p.sid || '',
   };
@@ -78,11 +80,25 @@ function buildXrayConfig(link, opts = {}) {
     dns: {
       servers: ['1.1.1.1', '8.8.8.8'],
     },
+    // Сплит-маршрутизация: RU/СНГ + локалки идут НАПРЯМУЮ (быстрее, без капч банков/
+    // госуслуг, меньше нагрузка на туннель), весь остальной мир — сквозь VPN.
+    // domain-правило безопасно всегда; ip-правило (geoip:ru) — только если в папке ядра
+    // есть geoip.dat (иначе xray не стартует): main.js передаёт opts.geoip=false.
     routing: {
       domainStrategy: 'AsIs',
       rules: [
         { type: 'field', network: 'dns', outboundTag: 'proxy' },
-        { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
+        {
+          type: 'field',
+          domain: [
+            '.ru', '.xn--p1ai', '.su',
+            '.by', '.kz', '.uz', '.az', '.ge', '.am', '.md', '.kg', '.tj', '.tm',
+          ],
+          outboundTag: 'direct',
+        },
+        ...(opts.geoip === false
+          ? [{ type: 'field', ip: ['geoip:private'], outboundTag: 'direct' }]
+          : [{ type: 'field', ip: ['geoip:private', 'geoip:ru'], outboundTag: 'direct' }]),
       ],
     },
   };

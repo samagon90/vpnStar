@@ -320,7 +320,7 @@ function makeVerdict(d) {
   }
   if (p) {
     if (tunnelOk) {
-      v.push('Туннель РАБОТАЕТ: сайты через VPN грузятся. Если в браузере не грузится — включите системный прокси в приложении (кнопка) и перезапустите браузер.');
+      v.push('Туннель РАБОТАЕТ: сайты через VPN грузятся. Если в браузере не грузится — нажми в приложении кнопку «🌐 Системный прокси: вкл», затем перезапусти браузер (Chrome/Edge подхватывают прокси без перезапуска, Firefox — только если стоит «Использовать системные настройки прокси»).');
     } else if (directOk && d.t2 && d.t2.ok) {
       v.push('Сервер из вашей сети достижим, но туннель НЕ работает: xray не запущен, профиль не соответствует серверу или ключи старые. Возьмите свежий QR/ссылку из Кабинета.');
     } else if (directOk && d.t2 && d.t2.ok === false) {
@@ -350,6 +350,7 @@ function buildReport(d, extra = {}) {
   s.push(`app: ${extra.appVersion || '?'} / ${process.platform} ${process.arch} / node ${process.version}`);
   s.push(`mode: ${extra.mode || '?'}`);
   s.push(`xray: ${extra.xrayState || '?'}`);
+  s.push(`sysproxy: ${extra.sysproxy || '?'}`);
   if (p.host) {
     s.push(`profile: type=vless server=${p.host}:${p.port} security=${p.security || 'reality'} sni=${p.sni || '?'} pbk=${(p.pbk || '?').slice(0, 14)}… sid=${p.sid || '?'} flow=${p.flow || '?'}`);
     s.push(`uuid: ${p.uuid || '?'}`);

@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('sonic', {
   getProfile: () => ipcRenderer.invoke('app:get-profile'),
   setAutoconnect: (v) => ipcRenderer.invoke('app:set-autoconnect', v),
   copyReport: (text) => ipcRenderer.invoke('app:copy-report', text),
+  proxyGet: () => ipcRenderer.invoke('app:proxy-get'),
+  proxySet: (on) => ipcRenderer.invoke('app:proxy-set', on),
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   onStatus: (cb) => ipcRenderer.on('status', (_e, p) => cb(p)),
   onCoreProgress: (cb) => ipcRenderer.on('core-progress', (_e, p) => cb(p)),

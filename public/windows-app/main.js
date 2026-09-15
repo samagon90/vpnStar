@@ -154,21 +154,61 @@ async function ensureCore() {
 }
 
 // ---------- системный прокси (HKCU — без прав администратора) ----------
+// Важно: ProxyEnable обязан быть REG_DWORD (со строкой WinINET его игнорирует),
+// каждый `reg add` — отдельный вызов (reg.exe выполняет только одну команду),
+// после смены — рассылка SETTINGS_CHANGED/REFRESH, иначе Chrome/Edge подхватят
+// настройки только после перезапуска.
 
 const REG_PATH = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings';
 const PROXY_OVERRIDE = 'localhost;127.*;10.*;172.16.*;192.168.*;<local>';
+const PROXY_SERVER = `http=127.0.0.1:${HTTP_PORT};https=127.0.0.1:${HTTP_PORT}`;
 
-function setSystemProxy(on) {
+function regAdd(args) {
   return new Promise((resolve) => {
-    const cmd = on
-      ? ['add', REG_PATH, '/v', 'ProxyEnable', '/t', 'REG_SZ', '/d', '1', '/f',
-         'add', REG_PATH, '/v', 'ProxyServer', '/t', 'REG_SZ', '/d', `127.0.0.1:${HTTP_PORT}`, '/f',
-         'add', REG_PATH, '/v', 'ProxyOverride', '/t', 'REG_SZ', '/d', PROXY_OVERRIDE, '/f']
-      : ['add', REG_PATH, '/v', 'ProxyEnable', '/t', 'REG_SZ', '/d', '0', '/f'];
-    execFile('reg.exe', cmd, { timeout: 15000 }, (err) => {
+    execFile('reg.exe', ['add', REG_PATH, ...args, '/f'], { timeout: 15000 }, (err) => {
       resolve(!err);
     });
   });
+}
+
+function notifyProxyChanged() {
+  // fire-and-forget: без этого браузеры не замечают смену прокси без перезапуска
+  return new Promise((resolve) => {
+    const ps = 'Add-Type -MemberDefinition \'[DllImport("wininet.dll")] public static extern bool InternetSetOption(IntPtr h, int o, IntPtr b, int l);\' -Name W -Namespace P;'
+      + ' [P.W]::InternetSetOption([IntPtr]::Zero, 39, [IntPtr]::Zero, 0) | Out-Null;'
+      + ' [P.W]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null';
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeout: 15000 }, () => resolve());
+  });
+}
+
+async function setSystemProxy(on) {
+  if (on) {
+    const a = await regAdd(['/v', 'ProxyEnable', '/t', 'REG_DWORD', '/d', '1']);
+    const b = await regAdd(['/v', 'ProxyServer', '/t', 'REG_SZ', '/d', PROXY_SERVER]);
+    const c = await regAdd(['/v', 'ProxyOverride', '/t', 'REG_SZ', '/d', PROXY_OVERRIDE]);
+    if (!(a && b && c)) return false;
+  } else {
+    const a = await regAdd(['/v', 'ProxyEnable', '/t', 'REG_DWORD', '/d', '0']);
+    if (!a) return false;
+  }
+  await notifyProxyChanged();
+  return true;
+}
+
+function getSystemProxy() {
+  const query = (name) => new Promise((resolve) => {
+    execFile('reg.exe', ['query', REG_PATH, '/v', name], { timeout: 10000 }, (err, stdout) => {
+      resolve(err ? '' : String(stdout || ''));
+    });
+  });
+  return (async () => {
+    const en = await query('ProxyEnable');
+    const srv = await query('ProxyServer');
+    const m = en.match(/REG_DWORD\s+0x([0-9a-fA-F]+)/);
+    const enabled = m ? parseInt(m[1], 16) === 1 : false;
+    const sm = srv.match(/ProxyServer\s+REG_SZ\s+(.+)/);
+    return { enabled, server: sm ? sm[1].trim() : '' };
+  })();
 }
 
 // ---------- жизненный цикл xray ----------
@@ -187,7 +227,8 @@ async function startProxy(link) {
   state = 'connecting';
   send('status', { state, message: 'Подключаем…' });
   try {
-    const { cfg, parsed } = buildXrayConfig(link, { errorLogPath: ERROR_LOG });
+    const hasGeoip = fs.existsSync(path.join(CORE_DIR, 'geoip.dat'));
+    const { cfg, parsed } = buildXrayConfig(link, { errorLogPath: ERROR_LOG, geoip: hasGeoip });
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
     // чистый error-лог
     fs.writeFileSync(ERROR_LOG, '', 'utf8');
@@ -224,10 +265,16 @@ async function startProxy(link) {
       const tail = (fs.existsSync(ERROR_LOG) ? fs.readFileSync(ERROR_LOG, 'utf8') : '') + xrayLogTail;
       throw new Error('локальный прокси не поднялся за 15с. ' + (tail.slice(-400) || 'без логов — возможно, порт занят другим приложением'));
     }
-    await setSystemProxy(true);
+    const proxyOk = await setSystemProxy(true);
     currentLink = link;
     state = 'connected';
-    send('status', { state: 'connected', message: 'Подключено. Системный прокси: 127.0.0.1:' + HTTP_PORT });
+    send('status', {
+      state: 'connected',
+      message: proxyOk
+        ? 'Подключено. Системный прокси: ' + PROXY_SERVER
+        : 'Подключено, НО системный прокси НЕ включился — нажми кнопку «🌐 Системный прокси» ниже',
+      sysproxy: proxyOk,
+    });
   } catch (e) {
     state = 'disconnected';
     stopXrayProcess();
@@ -271,13 +318,16 @@ async function runDiag() {
   const profile = currentLink ? parseVlessLink(currentLink) : null;
   const proxyUp = state === 'connected';
   const d = await runDiagnostics(profile, { proxyUp, link: currentLink });
+  let sysproxy = null;
+  try { sysproxy = await getSystemProxy(); } catch { /* ignore */ }
   const report = buildReport(d, {
     appVersion: app.getVersion ? app.getVersion() : '?',
     mode: 'proxy ' + SOCKS_PORT + '/' + HTTP_PORT,
     xrayState: xrayStateText(),
+    sysproxy: sysproxy ? `enabled=${sysproxy.enabled ? 1 : 0} server=${sysproxy.server || '—'}` : 'не прочитано',
     logTail: xrayLogTail.trim() ? xrayLogTail.trim().split('\n').slice(-20).join('\n') : '(пусто)',
   });
-  return { diag: d, report };
+  return { diag: d, report, sysproxy };
 }
 
 // ---------- окно и IPC ----------
@@ -321,8 +371,26 @@ ipcMain.handle('app:disconnect', async () => {
 });
 
 ipcMain.handle('app:diagnose', async () => {
-  const { diag, report } = await runDiag();
-  return { ok: true, diag, report };
+  const { diag, report, sysproxy } = await runDiag();
+  return { ok: true, diag, report, sysproxy };
+});
+
+ipcMain.handle('app:proxy-get', async () => {
+  try {
+    const s = await getSystemProxy();
+    return { ok: true, ...s };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('app:proxy-set', async (_e, on) => {
+  try {
+    const ok = await setSystemProxy(!!on);
+    return { ok, ...(await getSystemProxy().catch(() => ({}))) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 ipcMain.handle('app:get-profile', async () => {

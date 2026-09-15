@@ -121,6 +121,24 @@ class Xui {
     }));
   }
 
+  /** ID всех VLESS+Reality входов (основной 443 + запасной 4433): новое устройство
+   *  получает клиента СРАЗУ везде — при точечной блокировке одного порта клиент
+   *  переключается без пересоздания. profileFor отдаёт основной (первый). */
+  async allVlessInboundIds() {
+    const list = await this.api('/panel/api/inbounds/list');
+    const rows = Array.isArray(list) ? list : (list?.rows || []);
+    // list отдаёт streamSettings ОБЪЕКТОМ (get — строкой): проверяем через JSON
+    const isReality = (r) => {
+      if (r.protocol !== 'vless') return false;
+      const ss = typeof r.streamSettings === 'string' ? r.streamSettings : JSON.stringify(r.streamSettings || {});
+      return ss.includes('realitySettings');
+    };
+    let vless = rows.filter(isReality);
+    if (!vless.length) vless = rows.filter((r) => r.protocol === 'vless');
+    if (!vless.length) throw new Error('3x-ui: VLESS inbound не найден (запустите deploy/xui-setup.sh на VPN-сервере)');
+    return vless.map((r) => r.id);
+  }
+
   async inboundId() {
     // первый VLESS inbound с Reality (создаётся deploy/xui-setup.sh)
     const list = await this.api('/panel/api/inbounds/list');
@@ -167,19 +185,19 @@ class Xui {
    * (проверено вживую: клиент подключается сразу после add, без перезапуска).
    */
   async addVlessClient(user, device) {
-    const { id } = await this.inboundId();
+    const ids = await this.allVlessInboundIds();
     const ref = `vs-u${user.id}-d${device.id}-${Date.now().toString(36)}`;
     await this.api('/panel/api/clients/add', {
       client: {
         security: '',
         email: ref,
         flow: 'xtls-rprx-vision',
-        limitIp: 1,
+        limitIp: 2,
         totalGB: 0,
         enable: true,
         comment: `Sonic u${user.id} d${device.id}`,
       },
-      inboundIds: [id],
+      inboundIds: ids,
     });
     return ref;
   }

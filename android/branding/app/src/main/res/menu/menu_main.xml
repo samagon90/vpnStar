@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonic VPN: упрощённое верхнее меню — только импорт QR/буфера, проверка и перезапуск.
+     Убрано: ручное создание конфигов, экспорт, удаление всех/сортировки, подписки.
+     Иконки системные (всегда есть), подписи захардкожены по-русски (не зависим от строк v2rayNG). -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/import_qrcode"
+        android:icon="@android:drawable/ic_menu_camera"
+        android:title="QR-код" />
+    <item
+        android:id="@+id/import_clipboard"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="Из буфера" />
+    <item
+        android:id="@+id/real_ping_all"
+        android:icon="@android:drawable/ic_menu_search"
+        android:title="Проверить" />
+    <item
+        android:id="@+id/service_restart"
+        android:icon="@android:drawable/ic_menu_rotate"
+        android:title="Перезапуск" />
+</menu>

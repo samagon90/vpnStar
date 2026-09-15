@@ -214,6 +214,15 @@ devices/buy + confirm-mock (лимит 3) → PATCH enabled=false/true → DELET
 - ESM: `crypto` из `node:crypto` импортировать явно; SQLite — `node:sqlite` (без better-sqlite3)
 - Бот: поддержка-режим по chatId; AI получает user-контекст (подписка/устройства/баланс)
 - Логотип/палитра: плейсхолдер логотипа заменить → всё обновится (шапки, favicon, 4 страницы)
+- **Сеть/скорость (2026-09-15)**: BBR+fq на RU и DE (`/etc/sysctl.d/99-sonicvpn-bbr.conf`); fingerprint
+  по умолчанию **safari** (chrome-hello >MTU режется на путях из РФ — проверено вживую:
+  chrome=таймаут, safari=ОК); Windows-ядро: RU/СНГ-домены+`geoip:ru` идут напрямую
+  (split routing в `windows-app/xray-config.js`, нужен `geoip.dat` рядом с ядром)
+- **Failover (2026-09-15)**: DE имеет 2 VLESS+Reality входа — `in-433-tcp` (:443, amd.com)
+  и `sonic-alt` (:4433, samsung.com, ключи в истории чата/панели). `addVlessClient` создаёт
+  клиента СРАЗУ на всех (`allVlessInboundIds`), `limitIp: 2` для новых (защита от ложных
+  банов 3x-ipl при CGNAT/двух сетях — 15.09 было 2 ложных бана); старые клиенты limitIp:1
+  не трогать батчем (update панели хрупкий). Профили из кабинета — основной вход.
 
 ## 9. Ограничения / что НЕ проверено в песочнице
 
