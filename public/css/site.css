@@ -201,9 +201,12 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:34px 0;margin-top:40px
   .features{grid-template-columns:1fr}
   .hero{padding:56px 0 40px}
   .form-card{padding:24px}
-  .hero-logo{top:48px}
-  .hero-logo img{width:min(230px,78vw);height:min(230px,78vw);border-radius:48px;opacity:.06}
+  .hero-logo{display:none}
   .app-logo img{width:80px;height:80px}
+  /* на телефоне — плоский фон вообще без слоёв: даже статичные
+     полноэкранные градиенты на слабых GPU дают рывки при скролле */
+  .sky{display:none}
+  html{scroll-behavior:auto}
   /* на телефоне прячем колонку Email в реферальной таблице */
   .hide-m{display:none!important}
 }
