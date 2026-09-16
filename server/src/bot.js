@@ -227,7 +227,13 @@ export function startBot() {
       // ВАЖНО: шлём vless-ссылку ОБЫЧНЫМ текстом без parse_mode: base64-блок
       // в Markdown Telegram отвергает (400 text must be non-empty), а ссылка
       // plain-текстом и копируется, и импортируется клиентами напрямую.
-      if (info) await replyRetry(ctx, info.vless_link, { link_preview_options: { is_disabled: true } });
+      if (info) {
+        await replyRetry(ctx, info.vless_link, { link_preview_options: { is_disabled: true } });
+        try {
+          const alt = await provider.altLink(user, first);
+          if (alt) await replyRetry(ctx, '🔀 Запасная ссылка (если основная не подключается):\n' + alt, { link_preview_options: { is_disabled: true } });
+        } catch { /* запасной нет — молча */ }
+      }
     }
 
     if (data === 'devices') {

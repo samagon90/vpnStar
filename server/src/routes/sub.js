@@ -26,17 +26,22 @@ function parseVless(link) {
 }
 
 async function userLinks(user) {
-  const links = [];
-  for (const d of q.devicesOf(user.id)) {
-    if (!d.enabled) continue;
-    try {
-      const p = await provider.profile(user, d);
-      if (p?.vless_link) links.push({ name: d.name, link: p.vless_link, reserve: false });
-      const alt = await provider.altLink(user, d);
-      if (alt) links.push({ name: `${d.name} резерв`, link: alt, reserve: true });
-    } catch { /* устройство без профиля — пропускаем */ }
-  }
-  return links;
+  // параллельно: у пользователя обычно 1–3 устройства, каждое — 2 запроса к панели
+  const perDevice = await Promise.all(
+    q.devicesOf(user.id).map(async (d) => {
+      if (!d.enabled) return [];
+      try {
+        const p = await provider.profile(user, d);
+        const out = p?.vless_link ? [{ name: d.name, link: p.vless_link, reserve: false }] : [];
+        const alt = await provider.altLink(user, d);
+        if (alt) out.push({ name: `${d.name} резерв`, link: alt, reserve: true });
+        return out;
+      } catch {
+        return []; // устройство без профиля — пропускаем
+      }
+    })
+  );
+  return perDevice.flat();
 }
 
 r.get('/v2ray', async (req, res) => {

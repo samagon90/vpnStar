@@ -84,6 +84,9 @@ CREATE TABLE IF NOT EXISTS notifications(
 );
 CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id, at);
 CREATE INDEX IF NOT EXISTS idx_users_referrer ON users(referrer_id);
+CREATE INDEX IF NOT EXISTS idx_payments_yk ON payments(yk_payment_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);
 `);
 
 // --- миграции (безопасно для старых баз) ---
