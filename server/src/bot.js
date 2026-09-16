@@ -37,10 +37,22 @@ export function startBot() {
   // Глушим её, остальное пробрасываем.
   async function safeEdit(ctx, text, extra) {
     try {
-      await safeEdit(ctx, text, extra);
+      await ctx.editMessageText(text, extra);
     } catch (e) {
       const d = String(e?.description || e?.message || '');
       if (!d.includes('message is not modified')) throw e;
+    }
+  }
+
+  // Путь RU→Telegram подмирагивает (таймауты): отправку повторяем 1 раз через 2.5с.
+  async function replyRetry(ctx, text, extra) {
+    try {
+      return await ctx.reply(text, extra);
+    } catch (e) {
+      const d = String(e?.description || e?.message || '');
+      if (!/timeout|network|econn|etimedout|socket hang|502|503|504|try again/i.test(d)) throw e;
+      await new Promise((r) => setTimeout(r, 2500));
+      return await ctx.reply(text, extra);
     }
   }
 
@@ -109,28 +121,28 @@ export function startBot() {
     const hello = created
       ? `✦ Добро пожаловать в Sonic, ${ctx.from.first_name}!\n\nВаш аккаунт создан и синхронизирован с Telegram.\n🎁 Вам начислено ${TRIAL_DAYS} дней бесплатного доступа — карта и подтверждение почты/номера не нужны.\n\n📲 Подключение за 2 минуты: Android — наше приложение «Sonic», iPhone — Streisand (App Store).\nПошаговая инструкция: ${cfg.base_url}/help.html\n\n${created && user.referrer_id ? '🤝 Включён реферальный код: приглашавший получает 20% от ваших оплат.\n\n' : ''}`
       : `✦ С возвращением, ${ctx.from.first_name}! Аккаунт синхронизирован с Telegram.\n`;
-    await ctx.reply(hello, { reply_markup: menu });
+    await replyRetry(ctx, hello, { reply_markup: menu });
   });
 
   bot.command('cancel', async (ctx) => {
     supportMode.delete(ctx.chat.id);
-    await ctx.reply('Выход из режима поддержки.', { reply_markup: menu });
+    await replyRetry(ctx, 'Выход из режима поддержки.', { reply_markup: menu });
   });
 
   bot.command('link', async (ctx) => {
     const uname = ctx.message?.text?.split(/\s+/)[1]?.toLowerCase();
-    if (!uname) return ctx.reply('Использование: /link ваш_логин (логин с сайта).');
+    if (!uname) return replyRetry(ctx, 'Использование: /link ваш_логин (логин с сайта).');
     const siteUser = q.userByName(uname);
-    if (!siteUser) return ctx.reply('Пользователь с таким логином не найден.');
-    if (siteUser.tg_id && siteUser.tg_id !== ctx.from.id) return ctx.reply('Этот аккаунт уже связан с другим Telegram.');
+    if (!siteUser) return replyRetry(ctx, 'Пользователь с таким логином не найден.');
+    if (siteUser.tg_id && siteUser.tg_id !== ctx.from.id) return replyRetry(ctx, 'Этот аккаунт уже связан с другим Telegram.');
     q.linkTg(siteUser.id, ctx.from.id, ctx.from.username || null);
     const { user } = await ensureAccount(ctx.from);
-    if (user.id !== siteUser.id) return ctx.reply('Уже есть другой аккаунт с этим Telegram. Ссылка не применена.');
-    await ctx.reply(`✅ Аккаунт ${siteUser.username} синхронизирован с вашим Telegram.`, { reply_markup: menu });
+    if (user.id !== siteUser.id) return replyRetry(ctx, 'Уже есть другой аккаунт с этим Telegram. Ссылка не применена.');
+    await replyRetry(ctx, `✅ Аккаунт ${siteUser.username} синхронизирован с вашим Telegram.`, { reply_markup: menu });
   });
 
   bot.command('help', async (ctx) => {
-    await ctx.reply(
+    await replyRetry(ctx, 
       `Sonic — быстрый доступ в интернет:
 • 7 дней бесплатно, без карты
 • СБП QR + карты РФ
@@ -149,41 +161,41 @@ export function startBot() {
   bot.command('devices', async (ctx) => {
     const { user } = await ensureAccount(ctx.from);
     const { txt, kb } = devicesMessage(user);
-    await ctx.reply(txt, { parse_mode: 'HTML', reply_markup: kb });
+    await replyRetry(ctx, txt, { parse_mode: 'HTML', reply_markup: kb });
   });
 
   bot.command('block', async (ctx) => {
     const { user } = await ensureAccount(ctx.from);
     const n = Number(ctx.message?.text?.split(/\s+/)[1] || 0);
     const device = q.devicesOf(user.id)[n - 1];
-    if (!device) return ctx.reply(`Нет устройства №${n}. Список: /devices`);
-    if (!device.enabled) return ctx.reply(`${device.name} уже заблокировано.`);
+    if (!device) return replyRetry(ctx, `Нет устройства №${n}. Список: /devices`);
+    if (!device.enabled) return replyRetry(ctx, `${device.name} уже заблокировано.`);
     await provider.setDeviceEnabled(device, false);
     q.event(user.id, 'device_blocked');
-    await ctx.reply(`🚫 Устройство «${device.name}» заблокировано — оно больше не подключится.\nВключить: /unblock ${n}`);
+    await replyRetry(ctx, `🚫 Устройство «${device.name}» заблокировано — оно больше не подключится.\nВключить: /unblock ${n}`);
   });
 
   bot.command('unblock', async (ctx) => {
     const { user } = await ensureAccount(ctx.from);
     const n = Number(ctx.message?.text?.split(/\s+/)[1] || 0);
     const device = q.devicesOf(user.id)[n - 1];
-    if (!device) return ctx.reply(`Нет устройства №${n}. Список: /devices`);
-    if (device.enabled) return ctx.reply(`${device.name} уже активно.`);
+    if (!device) return replyRetry(ctx, `Нет устройства №${n}. Список: /devices`);
+    if (device.enabled) return replyRetry(ctx, `${device.name} уже активно.`);
     await provider.setDeviceEnabled(device, true);
     q.event(user.id, 'device_unblocked');
-    await ctx.reply(`✅ Устройство «${device.name}» снова активно.`, { reply_markup: new InlineKeyboard().text('📱 Устройства', 'devices') });
+    await replyRetry(ctx, `✅ Устройство «${device.name}» снова активно.`, { reply_markup: new InlineKeyboard().text('📱 Устройства', 'devices') });
   });
 
   // --- режим ИИ-поддержки: обычные сообщения идут в нейронку ---
   bot.on('message:text', async (ctx) => {
     const chatId = ctx.chat.id;
     if (!supportMode.has(chatId)) {
-      await ctx.reply('Нажмите «❓ Поддержка (нейросеть)» в меню — и просто пишите вопрос.', { reply_markup: menu });
+      await replyRetry(ctx, 'Нажмите «❓ Поддержка (нейросеть)» в меню — и просто пишите вопрос.', { reply_markup: menu });
       return;
     }
     const { user } = await ensureAccount(ctx.from); // живые данные клиента в контекст нейросети
     const answer = await aiSupport(ctx.message.text, user);
-    await ctx.reply(answer, { link_preview_options: { is_disabled: true } });
+    await replyRetry(ctx, answer, { link_preview_options: { is_disabled: true } });
   });
 
   bot.on('callback_query:data', async (ctx) => {
@@ -209,7 +221,10 @@ export function startBot() {
         `📶 Подписка активна\nИстекает: ${fmtDate(sub.expires_at)} (${Math.max(0, Math.ceil((new Date(sub.expires_at) - Date.now()) / 86400000))} дн.)\nУстройств: ${devices.length}/${devicesLimit(user)} (в подписке ${DEVICES_BASE}, +1 за ${money(DEVICE_PACK_PRICE_CENTS)})\nПровайдер: ${provider.name()}\n\n${info ? 'Конфиг основного устройства (импорт в v2rayNG / Streisand / Hiddify):' : '⚠️ Нет активных устройств — добавьте на сайте или в «📱 Устройства».'}`,
         { reply_markup: new InlineKeyboard().text('📱 Устройства', 'devices').text('💳 Продлить', 'buy') }
       );
-      if (info) await ctx.reply(`\`\`\`${info.config_text}\n\`\`\``, { parse_mode: 'Markdown' });
+      // ВАЖНО: шлём vless-ссылку ОБЫЧНЫМ текстом без parse_mode: base64-блок
+      // в Markdown Telegram отвергает (400 text must be non-empty), а ссылка
+      // plain-текстом и копируется, и импортируется клиентами напрямую.
+      if (info) await replyRetry(ctx, info.vless_link, { link_preview_options: { is_disabled: true } });
     }
 
     if (data === 'devices') {
