@@ -26,10 +26,17 @@ export const hashPassword = (password) => {
   return `${salt}:${h}`;
 };
 export const verifyPassword = (password, stored) => {
-  if (!stored) return false;
-  const [salt, h] = stored.split(':');
-  const calc = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(h, 'hex'), Buffer.from(calc, 'hex'));
+  try {
+    if (!stored || typeof stored !== 'string' || !stored.includes(':')) return false;
+    const [salt, h] = stored.split(':');
+    if (!salt || !h) return false;
+    const calc = crypto.scryptSync(password, salt, 64).toString('hex');
+    const a = Buffer.from(h, 'hex');
+    const b = Buffer.from(calc, 'hex');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 };
 
 // --- Telegram Login Widget: official hash check ---

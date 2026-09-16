@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { cfg, PLANS, REFERRAL_PERCENT } from '../config.js';
-import { q, nowISO, addMonths } from '../db.js';
+import { q, nowISO, addMonths, getAdminSession } from '../db.js';
 import { newId, money } from '../util.js';
 import { yk } from '../yookassa.js';
 import { provider } from '../vpn/provider.js';
@@ -71,7 +71,7 @@ r.post('/', async (req, res) => {
   try {
     const { ykId, confirmationUrl } = await yk.createPayment({
       amountCents: rest,
-      description: `Sonic VPN — ${plan.name}`,
+      description: `Sonic — ${plan.name}`,
       returnUrl: `${cfg.base_url}/checkout.html?plan=${plan.key}`,
       idempotencyKey: checkoutId,
     });
@@ -149,9 +149,9 @@ r.get('/:id', async (req, res) => {
   });
 });
 
-/** Возврат (гарантия 3 дня) — только админ */
+/** Возврат (гарантия 3 дня) — только админ (сессия админа или мастер-токен) */
 r.post('/:id/refund', async (req, res) => {
-  const admin = req.headers['x-admin-token'] === cfg.admin_token;
+  const admin = !!getAdminSession(req) || req.headers['x-admin-token'] === cfg.admin_token;
   if (!admin) return res.status(403).json({ error: 'forbidden' });
   const p = q.payment(req.params.id);
   if (!p || p.status !== 'paid') return res.status(400).json({ error: 'Нельзя вернуть этот платёж' });

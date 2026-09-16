@@ -58,6 +58,9 @@ export function startBot() {
 
   const devicesLimit = (user) => DEVICES_BASE + Number(user.devices_extra || 0);
   const firstActiveDevice = (user) => q.devicesOf(user.id).find((d) => d.enabled);
+  // Имена устройств/логины — от пользователей: без escape ломают HTML-разметку
+  // и Telegram отвечает 400 (кнопка «молчит»).
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /** Список устройств для бота: кнопки-QR + командами /block /unblock блокировка */
   function devicesMessage(user) {
@@ -68,7 +71,7 @@ export function startBot() {
       `+1 устройство — ${money(DEVICE_PACK_PRICE_CENTS)}.\n\n`;
     if (!list.length) txt += 'Пока нет устройств — добавьте на сайте (кабинет) или нажмите ниже.\n';
     list.forEach((d, i) => {
-      txt += `${i + 1}. ${d.enabled ? '✅' : '🚫'} <b>${d.name}</b>\n`;
+      txt += `${i + 1}. ${d.enabled ? '✅' : '🚫'} <b>${esc(d.name)}</b>\n`;
     });
     txt += `\nБлокировка устройства (самостоятельно): <code>/block №</code> и <code>/unblock №</code>\nУдаление устройства (свободит слот) — в кабинете на сайте.`;
     const kb = new InlineKeyboard();
@@ -375,7 +378,7 @@ export function startBot() {
       if (inv.length) {
         txt += '\nСтатистика:\n';
         for (const u of inv.slice(0, 15)) {
-          txt += `• <b>${u.username}</b> — ${u.email || 'без email'}\n  подключён ${fmtDate(u.created_at)}, активен ${fmtDate(u.last_active_at)}\n`;
+          txt += `• <b>${esc(u.username)}</b> — ${esc(u.email || 'без email')}\n  подключён ${fmtDate(u.created_at)}, активен ${fmtDate(u.last_active_at)}\n`;
         }
       }
       txt += `\nПоделитесь ссылкой: ${cfg.base_url}/auth.html?ref=${user.referral_code}`;

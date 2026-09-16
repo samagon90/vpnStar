@@ -176,9 +176,10 @@ class Xui {
     return this.#params;
   }
 
-  /**
-   * Один клиент 3x-ui = ОДНО устройство (limitIp: 1).
-   * email = наш стабильный ref. UUID генерирует сама панель
+/**
+    * Один клиент 3x-ui = ОДНО устройство (limitIp: -1 — без лимита IP:
+    * мобильные сети меняют IP при переключении, банить за это нельзя).
+    * email = наш стабильный ref. UUID генерирует сама панель
    * (v3: per-protocol secrets server-side; поле — `uuid`, не `id`).
    *
    * Рестарт НЕ нужен: 3x-ui 3.7 применяет add к работающему xray мгновенно
@@ -192,7 +193,7 @@ class Xui {
         security: '',
         email: ref,
         flow: 'xtls-rprx-vision',
-        limitIp: 2,
+        limitIp: -1,
         totalGB: 0,
         enable: true,
         comment: `Sonic u${user.id} d${device.id}`,
@@ -241,7 +242,7 @@ class Xui {
     const { pbk, sni, sid, spx, port: rport } = await this.inboundParams();
     const host = process.env.XUI_HOST || 'vpn.example.com';
     const port = process.env.XUI_PORT || rport || 443;
-    const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
+    const remark = `Sonic · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
     const extra = [
       sid ? `sid=${encodeURIComponent(sid)}` : '',
       spx ? `spx=${encodeURIComponent(spx)}` : '',
@@ -258,6 +259,50 @@ class Xui {
       config_text: Buffer.from(JSON.stringify(share)).toString('base64'),
       host, port, uuid, demo: false,
     };
+  }
+
+  /**
+   * Запасной вход (второй VLESS+Reality, например :4433): профиль по ТОМУ ЖЕ ref.
+   * Клиенты создаются сразу на всех входах (addVlessClient), так что uuid ищем
+   * в clientStats запасного входа. Нет второго входа/клиента — возвращаем null.
+   */
+  async profileForAlt(device) {
+    if (!device || !device.ref_id) return null;
+    try {
+      const list = await this.api('/panel/api/inbounds/list');
+      const rows = Array.isArray(list) ? list : (list?.rows || []);
+      const isReality = (r) => {
+        if (r.protocol !== 'vless') return false;
+        const ss = typeof r.streamSettings === 'string' ? r.streamSettings : JSON.stringify(r.streamSettings || {});
+        return ss.includes('realitySettings');
+      };
+      const alts = rows.filter(isReality);
+      if (alts.length < 2) return null;
+      const alt = alts[1];
+      const s = (alt.clientStats || []).find((x) => x.email === device.ref_id);
+      const uuid = String(s?.uuid || '');
+      if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid)) return null;
+      const ss = typeof alt.streamSettings === 'string' ? JSON.parse(alt.streamSettings) : alt.streamSettings || {};
+      const rs = ss.realitySettings || {};
+      const pbk = String(rs.publicKey || '');
+      const sni = String(rs.serverNames?.[0] || '');
+      const sid = Array.isArray(rs.shortIds) && rs.shortIds.length ? String(rs.shortIds[0]) : '';
+      const spx = String(rs.spiderX || '');
+      if (!pbk || !sni) return null;
+      const host = process.env.XUI_HOST || 'vpn.example.com';
+      const port = alt.port || 4433;
+      const fp = process.env.REALITY_FP || 'safari';
+      const remark = `Sonic · ${device.name || 'device'} · резерв`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
+      const extra = [
+        sid ? `sid=${encodeURIComponent(sid)}` : '',
+        spx ? `spx=${encodeURIComponent(spx)}` : '',
+      ].filter(Boolean).join('&');
+      const link =
+        `vless://${uuid}@${host}:${port}?security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&flow=xtls-rprx-vision&type=tcp${extra ? `&${extra}` : ''}#${remark}`;
+      return { vless_link: link, host, port, uuid };
+    } catch {
+      return null;
+    }
   }
 }
 

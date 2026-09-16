@@ -91,7 +91,7 @@ r.post('/buy', async (req, res) => {
   try {
     const { ykId, confirmationUrl } = await yk.createPayment({
       amountCents: rest,
-      description: 'Sonic VPN — устройство +1',
+      description: 'Sonic — устройство +1',
       returnUrl: `${cfg.base_url}/account.html`,
       idempotencyKey: checkoutId,
     });
@@ -120,8 +120,14 @@ r.get('/:id', async (req, res) => {
     console.error('[devices] profile', e.message);
     return res.status(502).json({ error: e.message || 'Профиль временно недоступен' });
   }
+  // запасная ссылка (второй вход): если основной порт прижмут — клиент переключится
+  let alt = null;
+  try {
+    const altLink = await provider.altLink(req.user, d);
+    if (altLink) alt = { vless_link: altLink, qr: await provider.qrDataUrl({ vless_link: altLink }) };
+  } catch (e) { console.error('[devices] alt', e.message); }
   delete profile.demo;
-  res.json({ device: deviceInfo(d), profile });
+  res.json({ device: deviceInfo(d), profile, alt });
 });
 
 /** Имя и/или блокировка (enabled: false = заблокировано) */

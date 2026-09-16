@@ -30,7 +30,7 @@ function mockProfileFor(user, device) {
   const sni = 'www.microsoft.com';
   const pbk = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8='; // демонстрационный (валидный X25519-формат, реальную пару даёт 3x-ui)
   const fp = cfg.reality_fp || 'chrome';
-  const remark = `SonicVPN · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
+  const remark = `Sonic · ${device.name || 'device'}`.replace(/[#\s]/g, (m) => (m === '#' ? '' : '%20'));
   const link =
     `vless://${uuid}@${host}:${port}?security=reality&sni=${sni}&pbk=${pbk}&fp=${fp}&type=tcp#${remark}`;
   // конфиг в base64 (формат share v2ray) — импортируется в v2rayNG / Streisand / Hiddify
@@ -86,6 +86,23 @@ export const provider = {
         console.error('[vpn] xui profile failed even after re-ensure:', e2.message);
         throw new Error('Профиль временно недоступен — попробуйте ещё раз через минуту');
       }
+    }
+  },
+
+  /** Запасная ссылка (второй вход панели). Нет второго входа — null, это нормально. */
+  async altLink(user, device) {
+    if (!cfg.xui_base) return null;
+    try {
+      let d = device;
+      if ((d.provider === 'pending' || !d.ref_id)) {
+        await this.provisionDevice(user, d);
+        d = q.device(d.id);
+      }
+      const alt = await xui.profileForAlt(d);
+      return alt ? alt.vless_link : null;
+    } catch (e) {
+      console.warn('[vpn] alt link unavailable:', e.message);
+      return null;
     }
   },
 
