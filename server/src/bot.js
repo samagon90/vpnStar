@@ -188,6 +188,7 @@ export function startBot() {
 
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
+    console.log(`[bot] tap: ${data} from ${ctx.from?.id}`);
     const { user } = await ensureAccount(ctx.from);
     await ctx.answerCallbackQuery().catch(() => {}); // гасим «часики» на кнопке
 
