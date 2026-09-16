@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Проверка скорости — Sonic VPN</title>
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="stylesheet" href="css/site.css?v=3">
+<style>
+  .gauge{background:rgba(0,0,0,.35);border:1px solid var(--card-b);border-radius:14px;padding:20px;text-align:center}
+  .gauge .v{font-size:2.2rem;font-weight:800}
+  .gauge .k{color:var(--muted);font-size:.9rem}
+  .gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}
+  @media(max-width:560px){.gauges{grid-template-columns:1fr}}
+  .bar{height:8px;background:rgba(0,0,0,.4);border-radius:99px;overflow:hidden;margin-top:10px}
+  .bar i{display:block;height:100%;width:0;background:var(--grad)}
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><img src="img/logo.png" alt="Sonic VPN">Sonic VPN</a>
+    <nav><ul>
+      <li><a href="index.html#pricing">Тарифы</a></li>
+      <li><a href="index.html#faq">FAQ</a></li>
+      <li><a href="help.html">Как подключиться</a></li>
+    </ul></nav>
+    <a class="btn btn-primary" href="auth.html">7 дней бесплатно</a>
+  </div>
+</header>
+<main class="wrap wrap-narrow">
+  <section style="padding-top:48px">
+    <h1 style="font-size:1.9rem;font-weight:800">Проверка скорости</h1>
+    <p class="hint" style="margin:8px 0 0">Замер до нашего сервера. Включи VPN и нажми ещё раз — увидишь скорость <b>сквозь туннель</b>.</p>
+    <div class="gauges">
+      <div class="gauge"><div class="v" id="g-ping">—</div><div class="k">пинг, мс</div></div>
+      <div class="gauge"><div class="v" id="g-down">—</div><div class="k">скачивание, Мбит/с</div><div class="bar"><i id="b-down"></i></div></div>
+      <div class="gauge"><div class="v" id="g-up">—</div><div class="k">загрузка, Мбит/с</div><div class="bar"><i id="b-up"></i></div></div>
+    </div>
+    <button class="btn btn-primary btn-block" id="go" style="padding:15px">🚀 Начать проверку</button>
+    <p class="hint" id="st" style="text-align:center;margin-top:12px"></p>
+  </section>
+</main>
+<footer><div class="wrap"><p class="disclaimer">Sonic VPN · замер до сервера 87.249.49.204</p></div></footer>
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function ping() {
+  const ds = [];
+  for (let i = 0; i < 5; i++) {
+    const t0 = performance.now();
+    await fetch('/api/speed/ping', { cache: 'no-store' });
+    ds.push(performance.now() - t0);
+  }
+  ds.sort((a, b) => a - b);
+  return Math.round(ds[2]);
+}
+async function download() {
+  const size = 10; // МБ
+  const t0 = performance.now();
+  const r = await fetch(`/api/speed/download?size=${size}`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('Сервер попросил подождать 10с');
+  const rd = r.body.getReader();
+  let got = 0;
+  for (;;) {
+    const { done, value } = await rd.read();
+    if (done) break;
+    got += value.length;
+    $('b-down').style.width = Math.min(100, (got / (size * 1048576)) * 100) + '%';
+  }
+  const s = (performance.now() - t0) / 1000;
+  return Math.round((got * 8) / s / 1e6);
+}
+async function upload() {
+  const size = 4 * 1048576;
+  const buf = new Uint8Array(size);
+  crypto.getRandomValues(buf);
+  const t0 = performance.now();
+  const r = await fetch('/api/speed/upload', { method: 'POST', body: buf, cache: 'no-store' });
+  if (!r.ok) throw new Error('Сервер попросил подождать 10с');
+  const s = (performance.now() - t0) / 1000;
+  $('b-up').style.width = '100%';
+  return Math.round((size * 8) / s / 1e6);
+}
+$('go').onclick = async () => {
+  const btn = $('go');
+  btn.disabled = true;
+  try {
+    $('st').textContent = 'Меряем пинг…';
+    $('g-ping').textContent = await ping();
+    $('st').textContent = 'Меряем скачивание (10 МБ)…';
+    $('g-down').textContent = await download();
+    await sleep(11000); // кулдаун сервера между замерами
+    $('st').textContent = 'Меряем загрузку (4 МБ)…';
+    $('g-up').textContent = await upload();
+    $('st').textContent = 'Готово. Для сравнения замерь ещё раз с включённым VPN.';
+  } catch (e) {
+    $('st').textContent = 'Ошибка: ' + e.message;
+  }
+  btn.disabled = false;
+};
+</script>
+</body>
+</html>

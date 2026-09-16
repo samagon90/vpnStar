@@ -10,6 +10,7 @@ import payRoutes from './routes/pay.js';
 import accountRoutes from './routes/account.js';
 import devicesRoutes from './routes/devices.js';
 import subRoutes from './routes/sub.js';
+import speedRoutes from './routes/speed.js';
 import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import debugRoutes from './routes/debug.js';
@@ -60,6 +61,7 @@ app.use('/api', requireAuth, accountRoutes);
 app.use('/api/devices', requireAuth, devicesRoutes);
 app.use('/api/sub', requireAuth, subRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/speed', speedRoutes); // публичный спидтест (без сессии)
 
 // --- Статика: сайт (работает в РФ без VPN: деплой на Cloudflare Pages / за Cloudflare-прокси) ---
 // Тяжёлые/стабильные ассеты (картинки, css, js) кэшируем надолго — иначе браузер

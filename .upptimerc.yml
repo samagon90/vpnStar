@@ -1,0 +1,36 @@
+# Upptime: публичная статус-страница Sonic VPN (бесплатно, GitHub Actions + Pages).
+# После пуша: Actions -> "Uptime CI" отработает сам, затем Settings -> Pages -> gh-pages.
+owner: samagon90
+repo: vpnStar
+sites:
+  - name: 🌐 Сайт Sonic VPN
+    url: http://87.249.49.204/
+  - name: 🔌 API
+    url: http://87.249.49.204/api/health
+    expectedStatusCodes: [200]
+    maxResponseTime: 5000
+  - name: 🇩🇪 VPN вход 443
+    check: tcp-ping
+    url: 185.125.102.135:443
+  - name: 🇩🇪 VPN вход 4433 (резерв)
+    check: tcp-ping
+    url: 185.125.102.135:4433
+  - name: 🚀 Проверка скорости
+    url: http://87.249.49.204/speedtest.html
+    maxResponseTime: 5000
+status-website:
+  cname: false
+  baseUrl: /vpnStar
+  logoUrl: https://raw.githubusercontent.com/samagon90/vpnStar/arena/01a05219-vpnstar/public/img/logo.png
+  name: Sonic VPN — статус
+  introTitle: 'Всё под контролем'
+  introMessage: 'Живой статус сайта, API и VPN-входов. Обновление каждые 5 минут.'
+  navbar:
+    - title: Сайт
+      href: http://87.249.49.204/
+    - title: Как подключиться
+      href: http://87.249.49.204/help.html
+i18n:
+  active: Продукт работает
+  down: Продукт не работает
+  degraded: Частичные проблемы
