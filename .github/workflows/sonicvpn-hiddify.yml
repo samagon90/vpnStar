@@ -1,0 +1,112 @@
+name: Sonic VPN Hiddify APK
+
+# Новое Android-приложение: ребрендинг Hiddify v4.1.1 (пина; Flutter, GPL).
+# Happ закрыт — это ближайший открытый аналог внешне и по функциям.
+# Запуск: Actions -> Sonic VPN Hiddify APK -> Run workflow.
+# Результат: APK в Release sonicvpn-hiddify (обновление встаёт поверх старого Sonic VPN).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия в заметках релиза"
+        required: false
+        default: "1.0.0"
+
+env:
+  CHANNEL: prod
+  HIDDIFY_TAG: v4.1.1
+  FLUTTER_VERSION: '3.38.5'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Sonic VPN repo
+        uses: actions/checkout@v4
+
+      - name: Clone Hiddify (pinned)
+        run: git clone --depth 1 --branch "$HIDDIFY_TAG" https://github.com/hiddify/hiddify-app.git /tmp/hiddify
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2.21.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+          cmdline-tools-version: '14742923'
+          packages: 'platforms;android-36.0 build-tools;36.0.0 platform-tools'
+
+      - name: Install NDK
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            --channel=0 \
+            --install "ndk;28.2.13676358" || echo "NDK install rc=$? (may pre-exist)"
+          ls $ANDROID_HOME/ndk/ || true
+
+      - name: Free disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          rm -rf ~/.gradle/caches || true
+          df -h | head -3
+
+      - name: Sonic branding
+        run: bash ${{ github.workspace }}/android-hiddify/branding.sh /tmp/hiddify ${{ github.workspace }}/android-hiddify/assets
+
+      - name: Prepare (deps, codegen, core libs)
+        working-directory: /tmp/hiddify
+        run: |
+          export PATH="$PATH:$HOME/.pub-cache/bin"
+          make android-apk-install-deps
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          dart run slang
+          make android-libs
+
+      - name: Build APKs
+        working-directory: /tmp/hiddify
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          flutter build apk --release --split-per-abi \
+            --target lib/main.dart \
+            --dart-define sentry_dsn=
+          ls -la build/app/outputs/flutter-apk/
+
+      - name: Collect (stable names)
+        run: |
+          mkdir -p dist
+          APKROOT=/tmp/hiddify/build/app/outputs/flutter-apk
+          cp "$APKROOT/app-arm64-v8a-release.apk" dist/SonicHiddify-arm64-v8a.apk
+          cp "$APKROOT/app-armeabi-v7a-release.apk" dist/SonicHiddify-armeabi-v7a.apk || echo "no v7a"
+          cp "$APKROOT/app-release.apk" dist/SonicHiddify-universal.apk || echo "no universal"
+          ls -la dist/
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sonicvpn-hiddify
+          name: "Sonic VPN Hiddify v${{ inputs.version }}"
+          files: dist/*.apk
+          fail_on_unmatched_files: true
+          body: |
+            **Sonic VPN** — новое приложение для Android (интерфейс как у Happ).
+            Ребрендинг [Hiddify v4.1.1](https://github.com/hiddify/hiddify-app) (GPL).
+            Тот же applicationId (`ru.sonicvpn.app`) — встанет поверх старого Sonic VPN,
+            профили сохранятся.
+
+            - **SonicHiddify-arm64-v8a.apk** — большинству телефонов
+            - **SonicHiddify-universal.apk** — все архитектуры (крупнее)
