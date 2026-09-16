@@ -60,6 +60,8 @@ function setStatus(state, message) {
   const pill = $('status-pill');
   const dot = $('status-dot');
   const txt = $('status-text');
+  const hero = $('hero-state');
+  const power = $('power-btn');
   const map = {
     connected: ['🟢', 'Подключено'],
     connecting: ['🟡', 'Подключаем…'],
@@ -68,8 +70,36 @@ function setStatus(state, message) {
   const m = map[state] || map.disconnected;
   dot.textContent = m[0];
   txt.textContent = m[1] + (message && state === 'disconnected' ? ' — ' + message : '');
+  hero.textContent = state === 'connected' ? 'Ты в сети ⚡' : state === 'connecting' ? (message || 'Подключаем…') : 'Нажми кнопку — и ты в сети';
+  hero.className = 'hero-state' + (state === 'connected' ? ' ok' : state === 'connecting' ? ' work' : '');
+  power.textContent = state === 'connected' ? '⏸' : '🚀';
+  power.classList.toggle('on', state === 'connected');
+  power.disabled = state === 'connecting';
   $('connect-btn').disabled = state === 'connecting';
   $('disconnect-btn').disabled = state !== 'connected';
+  updateServerChip();
+}
+
+function updateServerChip() {
+  const chip = $('server-chip');
+  const m = /^vless:\/\/[^@]+@([^:/?#]+)/i.exec($('link').value.trim());
+  if (m) {
+    chip.style.display = '';
+    chip.innerHTML = 'сервер <b>' + m[1].replace(/[<>&"]/g, '') + '</b>';
+  } else {
+    chip.style.display = 'none';
+  }
+}
+
+function updatePingChip(diag) {
+  const chip = $('ping-chip');
+  const t1 = diag && diag.t1;
+  if (t1 && typeof t1.ms === 'number') {
+    chip.style.display = '';
+    chip.innerHTML = 'пинг <b>' + t1.ms + ' мс</b>';
+  } else {
+    chip.style.display = 'none';
+  }
 }
 
 // ---------- сохранённый профиль и автоподключение ----------
@@ -79,6 +109,7 @@ async function initProfile() {
     const p = await window.sonic.getProfile();
     if (p && p.link) $('link').value = p.link;
     $('auto-cb').checked = !!(p && p.autoconnect);
+    updateServerChip();
     if (p && p.autoconnect && p.link) addEventListener('load', () => $('connect-btn').click());
   } catch {
     /* ignore */
@@ -89,9 +120,13 @@ async function initProfile() {
 
 $('connect-btn').addEventListener('click', async () => {
   const link = $('link').value.trim();
-  if (!link) return setMsg('Сначала вставь ссылку vless://', 'err');
-  setMsg('Подключаем (первый запуск — скачиваем ядро, это может занять время)…');
+  if (!link) {
+    document.getElementById('key-panel').open = true;
+    return setMsg('Сначала вставь ссылку vless://', 'err');
+  }
+  setMsg('Подключаем…');
   setStatus('connecting');
+  updateServerChip();
   try {
     const r = await window.sonic.connect(link);
     if (!r.ok) {
@@ -100,15 +135,31 @@ $('connect-btn').addEventListener('click', async () => {
       return;
     }
     setStatus('connected');
-    setMsg('Подключено. Теперь открой сайты в браузере (Chrome/Edge) — они пойдут через VPN.', 'ok');
-    renderDiag(r.diag);
-    renderReport(r.report);
+    setMsg('Подключено. Проверка идет в фоне — результат появится ниже.', 'ok');
     refreshProxyBtn();
+    // диагностика может прийти позже отдельным событием (быстрое подключение)
+    if (r.diag) {
+      renderDiag(r.diag);
+      renderReport(r.report);
+      updatePingChip(r.diag);
+    }
   } catch (e) {
     setStatus('disconnected', e.message);
     setMsg(e.message, 'err');
   }
 });
+
+// гигантская кнопка = тот же коннект/дисконнект
+$('power-btn').addEventListener('click', async () => {
+  const txt = $('status-text').textContent;
+  if (txt.startsWith('Подключено')) {
+    $('disconnect-btn').click();
+  } else {
+    $('connect-btn').click();
+  }
+});
+
+$('link').addEventListener('input', updateServerChip);
 
 $('disconnect-btn').addEventListener('click', async () => {
   setStatus('connecting', 'Отключаем…');
@@ -118,7 +169,7 @@ $('disconnect-btn').addEventListener('click', async () => {
   refreshProxyBtn();
 });
 
-// ---------- системный прокси (кнопка: браузеры идут через VPN только когда он вкл) ----------
+// ---------- системный прокси (кнопка: браузеры идут через канал только когда он вкл) ----------
 
 async function refreshProxyBtn() {
   const btn = $('proxy-btn');
@@ -132,7 +183,7 @@ async function refreshProxyBtn() {
     }
     const on = !!s.enabled;
     btn.textContent = on ? '🌐 Системный прокси: вкл' : '🌐 Системный прокси: выкл';
-    hint.textContent = on ? ('браузеры через VPN (' + (s.server || 'прокси') + ')') : 'браузеры идут напрямую — нажми, чтобы пустить через VPN';
+    hint.textContent = on ? ('браузеры через защищённый канал (' + (s.server || 'прокси') + ')') : 'браузеры идут напрямую — нажми, чтобы включить защищённый канал';
     return on;
   } catch {
     btn.textContent = '🌐 Системный прокси: ?';
@@ -171,6 +222,7 @@ $('recheck-btn').addEventListener('click', async () => {
     if (!r.ok) return setMsg(r.error, 'err');
     renderDiag(r.diag);
     renderReport(r.report);
+    updatePingChip(r.diag);
     setMsg('Проверка завершена.', 'ok');
   } catch (e) {
     setMsg(e.message, 'err');
@@ -190,6 +242,15 @@ window.sonic.onStatus((p) => {
   setStatus(p.state, p.message);
   if (p.state === 'connected' || p.state === 'disconnected') refreshProxyBtn();
 });
+window.sonic.onDiag((p) => {
+  if (!p) return;
+  renderDiag(p.diag);
+  renderReport(p.report);
+  updatePingChip(p.diag);
+  if (p.diag && ((p.diag.t4 && p.diag.t4.ok) || (p.diag.t5 && p.diag.t5.ok))) {
+    setMsg('Подключено. Сайты идут через VPN — проверяй браузер.', 'ok');
+  }
+});
 window.sonic.onCoreProgress((p) => {
   const bar = $('core-progress-bar');
   const wrap = $('core-progress');
@@ -204,4 +265,5 @@ window.sonic.onCoreProgress((p) => {
 
 setStatus('disconnected');
 refreshProxyBtn();
+updateServerChip();
 initProfile();

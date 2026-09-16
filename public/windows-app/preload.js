@@ -14,5 +14,6 @@ contextBridge.exposeInMainWorld('sonic', {
   proxySet: (on) => ipcRenderer.invoke('app:proxy-set', on),
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   onStatus: (cb) => ipcRenderer.on('status', (_e, p) => cb(p)),
+  onDiag: (cb) => ipcRenderer.on('diag', (_e, p) => cb(p)),
   onCoreProgress: (cb) => ipcRenderer.on('core-progress', (_e, p) => cb(p)),
 });

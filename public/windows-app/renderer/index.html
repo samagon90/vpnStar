@@ -14,26 +14,41 @@
 </header>
 
 <main>
-  <!-- ПОДКЛЮЧЕНИЕ -->
-  <section class="panel">
-    <h3>🔐 Подключение к VPN</h3>
-    <p class="hint">Вставь ссылку из <b>Кабинета</b> (на сайте кнопка «Скопировать» у устройства) — и нажми «Подключить».
-    Ключ сохраняется: в следующий раз он уже будет здесь.</p>
-    <textarea id="link" rows="3" placeholder="vless://…"></textarea>
-    <div class="row" style="margin-top:10px">
-      <button class="btn btn-primary" id="connect-btn">🚀 Подключить</button>
-      <button class="btn btn-danger" id="disconnect-btn" disabled>⛔ Отключить</button>
-      <span class="spacer"></span>
-      <label class="hint"><input type="checkbox" id="auto-cb" style="vertical-align:-2px"> подключаться автоматически</label>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn btn-ghost btn-sm" id="proxy-btn">🌐 Системный прокси: …</button>
-      <span class="hint" id="proxy-hint">браузеры идут через VPN только при включённом прокси</span>
+  <!-- ГЛАВНОЕ: одна большая кнопка как в Happ -->
+  <section class="hero-card">
+    <button class="big-btn" id="power-btn" title="Подключить / Отключить">🚀</button>
+    <div class="hero-state" id="hero-state">Нажми кнопку — и ты в сети</div>
+    <div class="hero-meta">
+      <span class="chip" id="ping-chip" style="display:none">пинг —</span>
+      <span class="chip" id="server-chip" style="display:none">—</span>
     </div>
     <div id="core-progress" class="progress" style="display:none">
       <div class="progress-bar" id="core-progress-bar"></div>
     </div>
     <p class="hint" id="msg" style="margin-top:10px"></p>
+  </section>
+
+  <!-- КЛЮЧ -->
+  <details class="panel" id="key-panel">
+    <summary style="cursor:pointer;font-weight:700;color:var(--muted)">🔑 Ключ подключения</summary>
+    <div style="margin-top:12px">
+      <p class="hint">Вставь ссылку из <b>Кабинета</b> (на сайте кнопка «Скопировать» у устройства). Ключ сохраняется — в следующий раз он уже будет здесь.</p>
+      <textarea id="link" rows="3" placeholder="vless://…" style="margin-top:8px"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-primary" id="connect-btn">🚀 Подключить</button>
+        <button class="btn btn-danger" id="disconnect-btn" disabled>⛔ Отключить</button>
+        <span class="spacer"></span>
+        <label class="hint"><input type="checkbox" id="auto-cb" style="vertical-align:-2px"> автоматически</label>
+      </div>
+    </div>
+  </details>
+
+  <!-- ПРОКСИ -->
+  <section class="panel">
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" id="proxy-btn">🌐 Системный прокси: …</button>
+      <span class="hint" id="proxy-hint">браузеры идут через VPN только при включённом прокси</span>
+    </div>
   </section>
 
   <!-- ПРОВЕРКА И ОТЛАДКА (для поддержки) -->

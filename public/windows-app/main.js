@@ -407,7 +407,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 980,
     height: 760,
-    title: 'Sonic VPN — Windows',
+    title: 'Sonic — Windows',
     backgroundColor: '#0d1420',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -429,8 +429,12 @@ ipcMain.handle('app:connect', async (_e, link) => {
     const trimmed = String(link).trim();
     await startProxy(trimmed);
     saveProfile(trimmed);
-    const { diag, report } = await runDiag();
-    return { ok: true, diag, report };
+    const sysproxy = await getSystemProxy().catch(() => null);
+    // отвечаем СРАЗУ (быстрое подключение), тяжёлая диагностика — фоном
+    runDiag()
+      .then(({ diag, report }) => send('diag', { diag, report }))
+      .catch(() => {});
+    return { ok: true, sysproxy };
   } catch (e) {
     return { ok: false, error: e.message };
   }
