@@ -7,10 +7,11 @@ SRC="$1"
 ICONS="$2"
 echo "=== Sonic branding on $SRC ==="
 
-# 1) package: тот же applicationId, что у текущего Sonic APK (обновление встанет поверх)
+# 1) package: тот же applicationId, что у текущего Sonic APK (обновление встанет поверх).
+# ВАЖНО: namespace НЕ трогаем — R-класс генерируется в пакете namespace, и весь
+# Kotlin-код ссылается на R без импорта (Unresolved reference при смене!).
 sed -i 's|applicationId "app.hiddify.com"|applicationId "ru.sonicvpn.app"|' "$SRC/android/app/build.gradle"
-sed -i "s|namespace 'com.hiddify.hiddify'|namespace 'ru.sonicvpn.app'|" "$SRC/android/app/build.gradle"
-grep -E "applicationId|namespace" "$SRC/android/app/build.gradle" | head -3
+grep -E "applicationId" "$SRC/android/app/build.gradle" | head -2
 
 # 2) имя приложения
 sed -i 's|android:label="Hiddify"|android:label="Sonic VPN"|' "$SRC/android/app/src/main/AndroidManifest.xml"
