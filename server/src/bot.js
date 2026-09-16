@@ -8,7 +8,7 @@ import { findPlan, applyPayment } from './routes/pay.js';
 import { aiSupport } from './ai.js';
 
 /**
- * Telegram-бот Sonic VPN:
+ * Telegram-бот Sonic:
  *  - регистрация/синхронизация аккаунта (/start, /link)
  *  - статус подписки + профиль (QR)
  *  - покупка (СБП QR / карта)
@@ -23,13 +23,26 @@ export function startBot() {
   const bot = new Bot(cfg.tg_bot_token);
   const supportMode = new Map(); // chatId -> true
 
+  // Главное меню: КАЖДАЯ кнопка на своей строке (.row()), иначе Telegram
+  // склеивает всё в один ряд и надписи не читаются. Подписи короткие.
   const menu = new InlineKeyboard()
-    .text('📶 Моя подписка', 'sub')
-    .text('📱 Мои устройства', 'devices')
-    .text('💳 Купить VPN', 'buy')
-    .text('🤝 Реферальная программа (20%)', 'ref')
-    .text('❓ Поддержка (нейросеть)', 'support')
-    .text('📣 Канал сервиса', 'channel');
+    .text('📶 Подписка', 'sub').row()
+    .text('📱 Устройства', 'devices').row()
+    .text('💳 Купить', 'buy').row()
+    .text('🤝 Рефералка', 'ref').row()
+    .text('❓ Поддержка', 'support').row()
+    .text('📣 Канал', 'channel');
+
+  // Повторный тап по той же кнопке = Telegram-ошибка «message is not modified».
+  // Глушим её, остальное пробрасываем.
+  async function safeEdit(ctx, text, extra) {
+    try {
+      await safeEdit(ctx, text, extra);
+    } catch (e) {
+      const d = String(e?.description || e?.message || '');
+      if (!d.includes('message is not modified')) throw e;
+    }
+  }
 
   const devicesLimit = (user) => DEVICES_BASE + Number(user.devices_extra || 0);
   const firstActiveDevice = (user) => q.devicesOf(user.id).find((d) => d.enabled);
@@ -47,9 +60,9 @@ export function startBot() {
     });
     txt += `\nБлокировка устройства (самостоятельно): <code>/block №</code> и <code>/unblock №</code>\nУдаление устройства (свободит слот) — в кабинете на сайте.`;
     const kb = new InlineKeyboard();
-    list.slice(0, 6).forEach((d, i) => kb.text(`📷 QR — ${i + 1}. ${d.name}`, `devqr_${d.id}`));
-    kb.text(`🛒 Устройство +1 — ${money(DEVICE_PACK_PRICE_CENTS)}`, 'dev1');
-    kb.text('⬅ Меню', 'menu');
+    list.slice(0, 6).forEach((d, i) => kb.text(`📷 QR ${i + 1}: ${d.name}`, `devqr_${d.id}`).row());
+    kb.text(`➕ Устройство +1 (${money(DEVICE_PACK_PRICE_CENTS)})`, 'dev1').row();
+    kb.text('⬅️ Меню', 'menu');
     return { txt, kb };
   }
 
@@ -94,7 +107,7 @@ export function startBot() {
     const ref = ctx.message?.text?.split(/\s+/)[1] || '';
     const { user, created } = await ensureAccount(ctx.from, ref);
     const hello = created
-      ? `✦ Добро пожаловать в Sonic VPN, ${ctx.from.first_name}!\n\nВаш аккаунт создан и синхронизирован с Telegram.\n🎁 Вам начислено ${TRIAL_DAYS} дней бесплатного доступа — карта и подтверждение почты/номера не нужны.\n\n📲 Подключение за 2 минуты: Android — наше приложение «Sonic VPN», iPhone — Streisand (App Store).\nПошаговая инструкция: ${cfg.base_url}/help.html\n\n${created && user.referrer_id ? '🤝 Включён реферальный код: приглашавший получает 20% от ваших оплат.\n\n' : ''}`
+      ? `✦ Добро пожаловать в Sonic, ${ctx.from.first_name}!\n\nВаш аккаунт создан и синхронизирован с Telegram.\n🎁 Вам начислено ${TRIAL_DAYS} дней бесплатного доступа — карта и подтверждение почты/номера не нужны.\n\n📲 Подключение за 2 минуты: Android — наше приложение «Sonic», iPhone — Streisand (App Store).\nПошаговая инструкция: ${cfg.base_url}/help.html\n\n${created && user.referrer_id ? '🤝 Включён реферальный код: приглашавший получает 20% от ваших оплат.\n\n' : ''}`
       : `✦ С возвращением, ${ctx.from.first_name}! Аккаунт синхронизирован с Telegram.\n`;
     await ctx.reply(hello, { reply_markup: menu });
   });
@@ -118,13 +131,13 @@ export function startBot() {
 
   bot.command('help', async (ctx) => {
     await ctx.reply(
-      `Sonic VPN — быстрый VPN:
+      `Sonic — быстрый доступ в интернет:
 • 7 дней бесплатно, без карты
 • СБП QR + карты РФ
 • ${DEVICES_BASE} устройства в подписке (+1 за ${money(DEVICE_PACK_PRICE_CENTS)}, до 10)
 • ${REFERRAL_PERCENT}% от оплат друзей — вам
 
-📲 Подключение за 2 минуты: Android — наше приложение «Sonic VPN», iPhone — Streisand (App Store).
+📲 Подключение за 2 минуты: Android — наше приложение «Sonic», iPhone — Streisand (App Store).
 Пошаговая инструкция: ${cfg.base_url}/help.html
 
 Меню:`,
@@ -158,7 +171,7 @@ export function startBot() {
     if (device.enabled) return ctx.reply(`${device.name} уже активно.`);
     await provider.setDeviceEnabled(device, true);
     q.event(user.id, 'device_unblocked');
-    await ctx.reply(`✅ Устройство «${device.name}» снова активно.`, { reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices') });
+    await ctx.reply(`✅ Устройство «${device.name}» снова активно.`, { reply_markup: new InlineKeyboard().text('📱 Устройства', 'devices') });
   });
 
   // --- режим ИИ-поддержки: обычные сообщения идут в нейронку ---
@@ -176,30 +189,31 @@ export function startBot() {
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
     const { user } = await ensureAccount(ctx.from);
+    await ctx.answerCallbackQuery().catch(() => {}); // гасим «часики» на кнопке
 
     if (data === 'sub') {
       const sub = q.sub(user.id);
       const active = !!(sub && new Date(sub.expires_at) > new Date());
       if (!active) {
-        await ctx.editMessageText(
+        await safeEdit(ctx, 
           '⛔ Подписка не активна.\n\nОформите тариф — доступ включится сразу после оплаты (СБП QR или карта).',
-          { reply_markup: new InlineKeyboard().text('💳 Купить VPN', 'buy') }
+          { reply_markup: new InlineKeyboard().text('💳 Купить доступ', 'buy') }
         );
         return;
       }
       const devices = q.devicesOf(user.id);
       const first = firstActiveDevice(user);
       const info = first ? await provider.profile(user, first) : null;
-      await ctx.editMessageText(
-        `📶 Подписка активна\nИстекает: ${fmtDate(sub.expires_at)} (${Math.max(0, Math.ceil((new Date(sub.expires_at) - Date.now()) / 86400000))} дн.)\nУстройств: ${devices.length}/${devicesLimit(user)} (в подписке ${DEVICES_BASE}, +1 за ${money(DEVICE_PACK_PRICE_CENTS)})\nПровайдер: ${provider.name()}\n\n${info ? 'Конфиг основного устройства (импорт в v2rayNG / Streisand / Hiddify):' : '⚠️ Нет активных устройств — добавьте на сайте или в «📱 Мои устройства».'}`,
-        { reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices').text('💳 Продлить', 'buy') }
+      await safeEdit(ctx, 
+        `📶 Подписка активна\nИстекает: ${fmtDate(sub.expires_at)} (${Math.max(0, Math.ceil((new Date(sub.expires_at) - Date.now()) / 86400000))} дн.)\nУстройств: ${devices.length}/${devicesLimit(user)} (в подписке ${DEVICES_BASE}, +1 за ${money(DEVICE_PACK_PRICE_CENTS)})\nПровайдер: ${provider.name()}\n\n${info ? 'Конфиг основного устройства (импорт в v2rayNG / Streisand / Hiddify):' : '⚠️ Нет активных устройств — добавьте на сайте или в «📱 Устройства».'}`,
+        { reply_markup: new InlineKeyboard().text('📱 Устройства', 'devices').text('💳 Продлить', 'buy') }
       );
       if (info) await ctx.reply(`\`\`\`${info.config_text}\n\`\`\``, { parse_mode: 'Markdown' });
     }
 
     if (data === 'devices') {
       const { txt, kb } = devicesMessage(user);
-      await ctx.editMessageText(txt, { parse_mode: 'HTML', reply_markup: kb });
+      await safeEdit(ctx, txt, { parse_mode: 'HTML', reply_markup: kb });
     }
 
     if (data.startsWith('devqr_')) {
@@ -221,26 +235,26 @@ export function startBot() {
       if (balanceUsed > 0) q.setBalance(user.id, user.balance_cents - balanceUsed);
       if (rest === 0) {
         applyPayment(q.payment(checkoutId));
-        await ctx.editMessageText(`✅ Устройство +1 оплачено с реферального баланса (${money(balanceUsed)})! Лимит теперь ${devicesLimit(q.userById(user.id))}.`, {
-          reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices').text('⬅ Меню', 'menu'),
+        await safeEdit(ctx, `✅ Устройство +1 оплачено с реферального баланса (${money(balanceUsed)})! Лимит теперь ${devicesLimit(q.userById(user.id))}.`, {
+          reply_markup: new InlineKeyboard().text('📱 Устройства', 'devices').text('⬅️ Меню', 'menu'),
         });
         return;
       }
       if (!yk.enabled()) {
-        await ctx.editMessageText(
+        await safeEdit(ctx, 
           `Тестовый режим: устройство +1 за ${money(rest)}. Нажмите кнопку ниже, чтобы подтвердить.`,
-          { reply_markup: new InlineKeyboard().text(`✅ Я оплатил ${money(rest)}`, `mockdevpay_${checkoutId}`).text('⬅ Меню', 'menu') }
+          { reply_markup: new InlineKeyboard().text(`✅ Я оплатил ${money(rest)}`, `mockdevpay_${checkoutId}`).text('⬅️ Меню', 'menu') }
         );
         return;
       }
       const { ykId, confirmationUrl } = await yk.createPayment({
         amountCents: rest,
-        description: 'Sonic VPN — устройство +1',
+        description: 'Sonic — устройство +1',
         returnUrl: `${cfg.base_url}/account.html`,
         idempotencyKey: checkoutId,
       });
       q.updatePaymentStatus(checkoutId, 'pending', { yk_payment_id: ykId });
-      await ctx.editMessageText(
+      await safeEdit(ctx, 
         `Оплатите ${money(rest)} по СБП (QR в приложении банка) или картой — и слот устройства появится.`,
         { reply_markup: new InlineKeyboard().url('💳 Оплатить (СБП / карта)', confirmationUrl).text('✅ Я оплатил — проверить', `chek_${checkoutId}`) }
       );
@@ -251,17 +265,17 @@ export function startBot() {
       const p = q.payment(checkoutId);
       if (!p || p.user_id !== user.id) return;
       if (p.status === 'pending') applyPayment(p);
-      await ctx.editMessageText(`✅ Готово! Лимит устройств теперь ${devicesLimit(q.userById(user.id))}.`, {
-        reply_markup: new InlineKeyboard().text('📱 Мои устройства', 'devices'),
+      await safeEdit(ctx, `✅ Готово! Лимит устройств теперь ${devicesLimit(q.userById(user.id))}.`, {
+        reply_markup: new InlineKeyboard().text('📱 Устройства', 'devices'),
       });
     }
 
     if (data === 'buy') {
       const kb = new InlineKeyboard();
-      for (const p of PLANS) kb.text(`${p.name} — ${money(p.price_cents)}`, `plan_${p.id}`);
-      kb.text('⬅ Меню', 'menu');
+      for (const p of PLANS) kb.text(`${p.name} — ${money(p.price_cents)}`, `plan_${p.id}`).row();
+      kb.text('⬅️ Меню', 'menu');
       const balance = q.userById(user.id).balance_cents;
-      await ctx.editMessageText(
+      await safeEdit(ctx, 
         `💳 Выбрать тариф${balance > 0 ? `\n(ваш реферальный баланс: ${money(balance)} — можно оплатить им)` : ''}`,
         { reply_markup: kb }
       );
@@ -280,14 +294,14 @@ export function startBot() {
       if (rest === 0) {
         applyPayment(q.payment(checkoutId));
         const sub = q.sub(user.id);
-        await ctx.editMessageText(
+        await safeEdit(ctx, 
           `✅ Оплачено с реферального баланса (${money(balanceUsed)})!\nПодписка продлена до ${fmtDate(sub.expires_at)}.`,
           { reply_markup: new InlineKeyboard().text('📶 Моя подписка', 'sub') }
         );
         return;
       }
       if (!yk.enabled()) {
-        await ctx.editMessageText(
+        await safeEdit(ctx, 
           `Тестовый режим: тариф «${plan.name}» за ${money(rest)}. Нажмите кнопку ниже, чтобы подтвердить.`,
           { reply_markup: new InlineKeyboard().text(`✅ Я оплатил ${money(rest)}`, `mockpay_${checkoutId}`) }
         );
@@ -295,12 +309,12 @@ export function startBot() {
       }
       const { ykId, confirmationUrl } = await yk.createPayment({
         amountCents: rest,
-        description: `Sonic VPN — ${plan.name}`,
+        description: `Sonic — ${plan.name}`,
         returnUrl: `${cfg.base_url}/checkout.html?plan=${plan.key}`,
         idempotencyKey: checkoutId,
       });
       q.updatePaymentStatus(checkoutId, 'pending', { yk_payment_id: ykId });
-      await ctx.editMessageText(
+      await safeEdit(ctx, 
         `Оплатите ${money(rest)} по СБП (QR в приложении банка) или картой.`,
         { reply_markup: new InlineKeyboard().url('💳 Оплатить (СБП / карта)', confirmationUrl).text('✅ Я оплатил — проверить', `chek_${checkoutId}`) }
       );
@@ -312,7 +326,7 @@ export function startBot() {
       if (!p || p.user_id !== user.id) return;
       if (p.status === 'pending') applyPayment(p);
       const sub = q.sub(user.id);
-      await ctx.editMessageText(`✅ Готово! Подписка активна до ${fmtDate(sub.expires_at)}.`, {
+      await safeEdit(ctx, `✅ Готово! Подписка активна до ${fmtDate(sub.expires_at)}.`, {
         reply_markup: new InlineKeyboard().text('📶 Моя подписка', 'sub'),
       });
     }
@@ -330,7 +344,7 @@ export function startBot() {
       const row = q.payment(checkoutId);
       if (row.status === 'paid') {
         const sub = q.sub(user.id);
-        await ctx.editMessageText(`✅ Оплата получена! Подписка активна до ${fmtDate(sub.expires_at)}.`, {
+        await safeEdit(ctx, `✅ Оплата получена! Подписка активна до ${fmtDate(sub.expires_at)}.`, {
           reply_markup: new InlineKeyboard().text('📶 Моя подписка', 'sub'),
         });
       } else {
@@ -349,24 +363,30 @@ export function startBot() {
         }
       }
       txt += `\nПоделитесь ссылкой: ${cfg.base_url}/auth.html?ref=${user.referral_code}`;
-      await ctx.editMessageText(txt, { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('⬅ Меню', 'menu') });
+      await safeEdit(ctx, txt, { parse_mode: 'HTML', reply_markup: new InlineKeyboard().text('⬅️ Меню', 'menu') });
     }
 
     if (data === 'support') {
       supportMode.set(ctx.chat.id, true);
-      await ctx.editMessageText(
-        '❓ Режим поддержки включён. Спросите меня о тарифах, оплате, подключении или рефералке — отвечаю нейросеть. Выход: /cancel'
+      await safeEdit(ctx, 
+        '❓ Режим поддержки включён. Просто напишите вопрос — отвечу.',
+        { reply_markup: new InlineKeyboard().text('⬅️ Выйти из поддержки', 'support_off') }
       );
     }
 
+    if (data === 'support_off') {
+      supportMode.delete(ctx.chat.id);
+      await safeEdit(ctx, '✦ Sonic — что делаем?', { reply_markup: menu });
+    }
+
     if (data === 'channel') {
-      await ctx.editMessageText('📣 Новости, статусы серверов и акции:', {
-        reply_markup: new InlineKeyboard().url('Открыть канал', cfg.tg_channel_url).text('⬅ Меню', 'menu'),
+      await safeEdit(ctx, '📣 Новости, статусы серверов и акции:', {
+        reply_markup: new InlineKeyboard().url('Открыть канал', cfg.tg_channel_url).text('⬅️ Меню', 'menu'),
       });
     }
 
     if (data === 'menu') {
-      await ctx.editMessageText('✦ Sonic VPN — что делаем?', { reply_markup: menu });
+      await safeEdit(ctx, '✦ Sonic — что делаем?', { reply_markup: menu });
     }
   });
 
