@@ -279,7 +279,23 @@ class Xui {
       const alts = rows.filter(isReality);
       if (alts.length < 2) return null;
       const alt = alts[1];
-      const s = (alt.clientStats || []).find((x) => x.email === device.ref_id);
+      // самолечение: клиента на запасном входе могло не быть (устройство создано
+      // до dual-inbound или удалено вручную) — создаём с тем же email, панель
+      // выдаст uuid (может отличаться от основного — это нормально, ссылка своя).
+      let s = (alt.clientStats || []).find((x) => x.email === device.ref_id);
+      if (!s) {
+        await this.api('/panel/api/clients/add', {
+          client: {
+            security: '', email: device.ref_id, flow: 'xtls-rprx-vision',
+            limitIp: 2, totalGB: 0, enable: true, comment: 'Sonic alt self-heal',
+          },
+          inboundIds: [alt.id],
+        });
+        const list2 = await this.api('/panel/api/inbounds/list');
+        const rows2 = Array.isArray(list2) ? list2 : (list2?.rows || []);
+        const alt2 = rows2.find((r) => r.id === alt.id);
+        s = (alt2?.clientStats || []).find((x) => x.email === device.ref_id);
+      }
       const uuid = String(s?.uuid || '');
       if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid)) return null;
       const ss = typeof alt.streamSettings === 'string' ? JSON.parse(alt.streamSettings) : alt.streamSettings || {};

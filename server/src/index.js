@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import payRoutes from './routes/pay.js';
 import accountRoutes from './routes/account.js';
 import devicesRoutes from './routes/devices.js';
+import subRoutes from './routes/sub.js';
 import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import debugRoutes from './routes/debug.js';
@@ -57,6 +58,7 @@ app.use('/api/debug', debugRoutes);
 app.use('/api/payments', requireAuth, payRoutes);
 app.use('/api', requireAuth, accountRoutes);
 app.use('/api/devices', requireAuth, devicesRoutes);
+app.use('/api/sub', requireAuth, subRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 // --- Статика: сайт (работает в РФ без VPN: деплой на Cloudflare Pages / за Cloudflare-прокси) ---
@@ -74,7 +76,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(cfg.port, '0.0.0.0', () => {
-  console.log(`Sonic VPN: http://0.0.0.0:${cfg.port} (mode: ${cfg.payment_mode}, vpn: ${cfg.xui_base ? '3x-ui' : 'mock'})`);
+  console.log(`Sonic: http://0.0.0.0:${cfg.port} (mode: ${cfg.payment_mode}, vpn: ${cfg.xui_base ? '3x-ui' : 'mock'})`);
 });
 
 const bot = startBot();
