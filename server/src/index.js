@@ -56,12 +56,11 @@ app.use('/api/admin', adminRoutes); // ДО общего requireAuth: админ
 // /api/debug ДО requireAuth-роутов: /server — публичный (зовёт режим отладки в APK,
 // без сессии); /check — для страницы /debug.html, auth проверяется внутри роутера (req.user)
 app.use('/api/debug', debugRoutes);
+app.use('/api/speed', speedRoutes); // публичный спидтест (без сессии)
+app.use('/api/webhooks', webhookRoutes); // вебхуки ЮKassa — тоже публичные, ДО requireAuth!
 app.use('/api/payments', requireAuth, payRoutes);
 app.use('/api', requireAuth, accountRoutes);
 app.use('/api/devices', requireAuth, devicesRoutes);
-app.use('/api/sub', requireAuth, subRoutes);
-app.use('/api/webhooks', webhookRoutes);
-app.use('/api/speed', speedRoutes); // публичный спидтест (без сессии)
 
 // --- Статика: сайт (работает в РФ без VPN: деплой на Cloudflare Pages / за Cloudflare-прокси) ---
 // Тяжёлые/стабильные ассеты (картинки, css, js) кэшируем надолго — иначе браузер
